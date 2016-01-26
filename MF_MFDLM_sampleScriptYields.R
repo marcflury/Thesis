@@ -5,11 +5,11 @@ set.seed(14850) # to reproduce (most of) the results from the paper
 #########################################################################################################################
 
 # MCMC parameters:
-nsims =  7000 		# Total number of simulations
-burnin = 2000		# Burn-in
+nsims =  2e4 		# Total number of simulations
+burnin = 0.1*nsims		# Burn-in
 
 # FDLM parameters:
-K = 4				# Number of factors
+K = 4			# Number of factors
 K.hmm.sv = 4		# Number of factors for the common trend model
 useHMM = FALSE		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
 # Note: HMM needs additional adjustments to store the relevant parameters
@@ -119,7 +119,9 @@ for(nsi in 1:nsims){			# nsi is the simulation index
     Et[c] = sampleEt(Y[, yc.inds], mu.c)
     
     # Sample the AR(1) and slope parameters (and other HMM parameters, if desired)
-    shmm = sampleHMMpar(Beta, K.hmm.sv, S, gammaSlopes, psi, ht, c, useHMM); gammaSlopes=shmm$gammaSlopes; psi = shmm$psi
+    shmm = sampleHMMpar(Beta, K.hmm.sv, S, gammaSlopes, psi, ht, c, useHMM)
+    gammaSlopes=shmm$gammaSlopes
+    psi = shmm$psi
     
     # Sample the stochastic volatility parameters:
     if(c > 1){
@@ -128,8 +130,11 @@ for(nsi in 1:nsims){			# nsi is the simulation index
     } else resBeta.c = Beta[-1, bc.inds] - matrix(rep(psi[bc.inds], T-1), nrow=T-1, byrow=TRUE)*Beta[-T, bc.inds]
     
     samples = sampleSV(resBeta.c,  ht[, bc.inds], svMu[bc.inds], svPhi[bc.inds], svSigma[bc.inds], svOffset=10^-6)
-    ht[, bc.inds] = samples$ht.c; svMu[bc.inds] = samples$svMu.c; svPhi[bc.inds] = samples$svPhi.c; svSigma[bc.inds] = samples$svSigma.c
-    Wt[bc.inds, bc.inds,] = samples$Wt.c
+    ht[, bc.inds] <- samples$ht.c
+    svMu[bc.inds] <- samples$svMu.c
+    svPhi[bc.inds] <- samples$svPhi.c
+    svSigma[bc.inds] <- samples$svSigma.c
+    Wt[bc.inds, bc.inds,] <- samples$Wt.c
     
     if(c > 1){
       # Standardized residual diagnostic/outlier plot:
@@ -143,11 +148,17 @@ for(nsi in 1:nsims){			# nsi is the simulation index
   }
   
   # Compute Gt and Wt matrices for HMM; common trend model is a submodel (Note: this is not efficient)
-  GtWt = computeGtWtHMM(Gt, Wt, S, gammaSlopes, psi, exp(ht)); Gt = GtWt$Gt; Wt = GtWt$Wt
+  GtWt <- computeGtWtHMM(Gt, Wt, S, gammaSlopes, psi, exp(ht))
+  Gt <- GtWt$Gt
+  Wt <- GtWt$Wt
   
   # Store the samples, respecting the burn-in and thinning
-  postBetaAll[nsi,,] = Beta; postDAll[nsi,,] = d; postLambdaAll[nsi,] = lambda; postEtAll[nsi,] = Et;  
-  postHtAll[nsi,,] = ht; postGammaSlopesAll[nsi,] = gammaSlopes; 
+  postBetaAll[nsi,,] <- Beta
+  postDAll[nsi,,] <- d
+  postLambdaAll[nsi,] <- lambda
+  postEtAll[nsi,] <- Et
+  postHtAll[nsi,,] <- ht
+  postGammaSlopesAll[nsi,] <- gammaSlopes 
   
   # Check the time remaining:
   computeTimeRemaining(nsi, timer0, nsims)
@@ -156,10 +167,18 @@ print(paste('Total time: ', round((proc.time()[3] - timer0)/60), 'minutes'))
 
 #########################################################################################################################
 # Discard burn-in in duplicate arrays (for some variables)
-postBeta = postBetaAll[-(1:burnin),,]; postD = postDAll[-(1:burnin),,]; postEt = postEtAll[-(1:burnin),]; postHt = postHtAll[-(1:burnin),,]; postGammaSlopes = postGammaSlopesAll[-(1:burnin),]; dev = devAll[-(1:burnin)];postCount = postCountAll[-(1:burnin),,]; postCountAgg = postCountAggAll[-(1:burnin),,]
+postBeta <- postBetaAll[-(1:burnin),,]; postD = postDAll[-(1:burnin),,]
+postEt = postEtAll[-(1:burnin),]
+postHt = postHtAll[-(1:burnin),,]
+postGammaSlopes = postGammaSlopesAll[-(1:burnin),]
+dev = devAll[-(1:burnin)];
+postCount = postCountAll[-(1:burnin),,]
+postCountAgg = postCountAggAll[-(1:burnin),,]
 
 # Fix important parameters at their posterior means:
-Beta = colMeans(postBeta); d = colMeans(postD); Et = colMeans(postEt); ht = colMeans(postHt); gammaSlopes = colMeans(postGammaSlopes)
+Beta = colMeans(postBeta); d = colMeans(postD)
+Et = colMeans(postEt); ht = colMeans(postHt)
+gammaSlopes = colMeans(postGammaSlopes)
 
 #########################################################################################################################
 
