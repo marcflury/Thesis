@@ -15,7 +15,7 @@ for(t in 1:Tend){
   } else {
     alpha[t] <- phi1*alpha[t-1] + phi0 + eta[t-1]
   }
-  y[t] <- alpha[t]+ u[t]
+  y[t] <- alpha[t] #+ u[t]
 }
 
 # MCMC size controls
@@ -40,7 +40,7 @@ prior<-list(inv_V0	= 0,
 theta_draws		<- matrix(rep(0,S*3),ncol=3)     
 
 # initialise parameters for Gibbs draws
-theta_draws[1,]<- t(c(0, 0.1, 0.5))
+theta_draws[1,]<- t(c(1, 0.5, 2))
 # alpha_draws		<- zeros(T,S)
 
 # constant to be passed to nig_draws
