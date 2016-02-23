@@ -1,17 +1,17 @@
 rm(list=ls(all=TRUE)) 
 
-set.seed(14850) # to reproduce (most of) the results from the paper
+set.seed(1990) # to reproduce (most of) the results from the paper
 
 #########################################################################################################################
 
 # MCMC parameters:
 nsims =  1e4 		# Total number of simulations
-burnin = 0.1*nsims		# Burn-in
+burnin = 0.2*nsims		# Burn-in
 
 # FDLM parameters:
-K = 4			# Number of factors
-K.hmm.sv = 4		# Number of factors for the common trend model
-useHMM = FALSE		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
+K = 3			# Number of factors
+K.hmm.sv = 3		# Number of factors for the common trend model
+useHMM = TRUE		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
 # Note: HMM needs additional adjustments to store the relevant parameters
 #########################################################################################################################
 
@@ -32,7 +32,17 @@ source("MF_MFDLM.R")
 #########################################################################################################################
 
 # Load the data and store key variables:
-load("Data.RData"); Y = diff(Data)			# Difference the data for easier analysis, stationarity
+load("Data.RData")
+
+Data["2015-09-04",525:1047] <- NA # 25% percent change in one day -> outlier
+Y <- Data
+
+
+C = 2							# Number of outcomes
+cnames = c("Brent", "Naphtha")		# Names of the outcomes (central banks)
+dates = as.Date(rownames(Y))				# Dates of the observations
+
+#########################################################################################################################
 
 T = nrow(Y)							# Total number of time points
 tau0 = as.numeric(colnames(Y))			# Frequencies within each time bin, concatenated across c = 1,...,C
@@ -41,11 +51,6 @@ allTaus0 = sort(unique(tau0))				# All unique frequencies (observation points)
 allTaus = sort(unique(tau)) 				# All unique frequencies (observation points), restricted to [0,1]
 m = length(allTaus)					# Total number of unique frequencies
 
-C = 2							# Number of outcomes
-cnames = c("Brent", "Naphtha")		# Names of the outcomes (central banks)
-dates = as.Date(rownames(Y))				# Dates of the observations
-
-#########################################################################################################################
 
 # Some useful indices:
 outcomeInds = c(1, which(tau[-1] < tau[-length(tau)])+1, length(tau)+1)		
@@ -53,6 +58,11 @@ outcomeInds = c(1, which(tau[-1] < tau[-length(tau)])+1, length(tau)+1)
 # where yc.inds = outcomeInds[c]:(outcomeInds[c+1]-1)
 betaInds = seq(1, C*(K+1), by=K)								# For outcome-specific Beta, use  Beta[, bc.inds]
 # where bc.inds = betaInds[c]:(betaInds[c+1]-1)
+
+####################################
+
+# Interpolate the data with using cubic splines
+Y <- diff(log(do.call("cbind",lapply(1:C,splineinterpol))))
 
 #########################################################################################################################
 
@@ -94,10 +104,13 @@ Model = SSModel(Y~-1+SSMcustom(Z = array(0, c(ncol(Y), nrow(Gt))),
 
 # Parameters to save:
 postBetaAll = array(0, c(nsims, dim(Beta))); postDAll = array(0, c(nsims, dim(d)))
-postLambdaAll = array(0, c(nsims, length(lambda))); postEtAll = array(0, c(nsims, C))  
+postLambdaAll = array(0, c(nsims, length(lambda)))
+postEtAll = array(0, c(nsims, C))  
 postHtAll = array(0, c(nsims, dim(ht))); postGammaSlopesAll = array(0, c(nsims, C*K))
 devAll = numeric(nsims)  # Deviance
 postCountAll = array(0, c(nsims, T-1, C*K)); postCountAggAll = array(0, c(nsims, T-1, C-1)); # For outlier plot
+postSAll <-  array(0, c(nsims, dim(S))) 
+ 
 #########################################################################################################################
 
 # Now, run the MCMC
@@ -120,9 +133,14 @@ for(nsi in 1:nsims){			# nsi is the simulation index
     Et[c] = sampleEt(Y[, yc.inds], mu.c)
     
     # Sample the AR(1) and slope parameters (and other HMM parameters, if desired)
-    shmm = sampleHMMpar(Beta, K.hmm.sv, S, gammaSlopes, psi, ht, c, useHMM)
-    gammaSlopes=shmm$gammaSlopes
-    psi = shmm$psi
+    shmm = sampleHMMpar(Beta, K.hmm.sv, S, gammaSlopes, psi, ht, c, useHMM, q01, q10)
+    gammaSlopes <- shmm$gammaSlopes
+    psi         <- shmm$psi
+    if(useHMM){
+      S           <- shmm$S
+      q01         <- shmm$q01
+      q10         <- shmm$q10
+      }
     
     # Sample the stochastic volatility parameters:
     if(c > 1){
@@ -160,6 +178,7 @@ for(nsi in 1:nsims){			# nsi is the simulation index
   postEtAll[nsi,] <- Et
   postHtAll[nsi,,] <- ht
   postGammaSlopesAll[nsi,] <- gammaSlopes 
+  postSAll[nsi,, ] <- S
   
   # Check the time remaining:
   computeTimeRemaining(nsi, timer0, nsims)
@@ -175,7 +194,7 @@ postGammaSlopes = postGammaSlopesAll[-(1:burnin),]
 dev = devAll[-(1:burnin)];
 # postCount = postCountAll[-(1:burnin),,]
 # postCountAgg = postCountAggAll[-(1:burnin),,]
-
+S <- colMeans(postSAll[-(1:burnin),,])
 # Fix important parameters at their posterior means:
 Beta = colMeans(postBeta); d = colMeans(postD)
 Et = colMeans(postEt); ht = colMeans(postHt)

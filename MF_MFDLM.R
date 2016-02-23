@@ -614,7 +614,9 @@ initHMM = function(Beta, K.hmm.sv, useHMM = FALSE, u01 = 1, u00 = 1, u10 = 1, u1
         S[, ck.inds] = sample(c(0,1), T, replace=TRUE, prob=c(u01+u00,u10+u11))
         
         # Now actually sample the states:
-        S[, ck.inds] = sampleHMMstates(Beta[, ck.inds], Beta[,k], psi[ck.inds], S[,ck.inds], q01[ck.inds], q10[ck.inds], rep(1, T))
+        S[, ck.inds] = sampleHMMstates(Beta[, ck.inds], Beta[,k],
+                                       psi[ck.inds], S[,ck.inds], q01[ck.inds],
+                                       q10[ck.inds], rep(1, T))
         
         # Sample q01 and q10
         qtemp = sampleTransitProbs(S[, ck.inds])
@@ -667,7 +669,7 @@ samplePsi = function(resBeta.ck, sigma.t2){
 sampleSlopes = function(B.ck, B.1k, psi.ck, St, sigma.t2){
   
   n = length(B.ck)
-  
+  print(list(n,as.matrix(psi.ck),length(sigma.t2)))
   # Simple regression framework:
   Ytemp = (B.ck[-1] - psi.ck*B.ck[-n])/sqrt(sigma.t2[-1])
   Xtemp = (St[-1]*B.1k[-1] - psi.ck*St[-n]*B.1k[-n])/sqrt(sigma.t2[-1])
@@ -1036,3 +1038,20 @@ computeTimeRemaining = function(nsi, timer0, nsims){
 }	
 #####################################################################################################
 #####################################################################################################
+
+#####################################################################################################
+# Function to interpolate using cubic splines 
+#####################################################################################################
+splineinterpol <- function(c){
+  # just look at outcome c:
+  Y0c = Y[, outcomeInds[c]:(outcomeInds[c+1]-1)]
+  
+  # if Y_t is partially missing, smooth across tau (for each such t):
+  notCC = which(rowSums(!is.na(Y0c)) != 0 )
+  Y0c[notCC,] = t(apply(Y0c[notCC,], 1, function(x) splinefun(tau[outcomeInds[c]:(outcomeInds[c+1]-1)], x, method='natural')(tau[outcomeInds[c]:(outcomeInds[c+1]-1)])))
+  
+  # if Y_t is completely missing, smooth across t for each observation point
+  Y0c = apply(Y0c, 2, function(x){splinefun(1:T, x, method='natural')(1:T)})
+  
+  return(Y0c)
+}

@@ -75,18 +75,21 @@ allDates <- allBrent$Date[which(allBrent$Date %in% allCrack$Date) ]
 NADates <- allBrent$Date[which(!(allBrent$Date %in% na.omit(allCrack)$Date)) ]
 
 # Create the Naphtha data.frame 
-allNaphtha <- do.call("rbind", lapply(allDates, createNap))
+allNaphtha <- do.call("rbind", lapply(allDates, createNap)) %>%
+  t2maturity( EndDatesNap, bizdaysList)
+
 
 # NA for merge
 find_NA(merge(allBrent, allCrack, by="Date", all=TRUE))
 
 # Cut sample so that year(Date) >= 2012
-rawData <- merge(allBrent, allNaphtha, by="Date", all=TRUE) %>%
+rawData <- merge(allBrent, allNaphtha, by="Date") %>%
   dplyr::filter(year(Date) >= 2012)
 
 Data  <- as.matrix(rawData[,-1])
+
 colnames(Data) <- gsub("[^1234567890]","",colnames(Data))
 rownames(Data) <- as.character(rawData$Date)
-
+find_NA(rawData)
 
 save(Data, file="Data.RData")
