@@ -9,8 +9,8 @@ nsims =  1e4 		# Total number of simulations
 burnin = 0.2*nsims		# Burn-in
 
 # FDLM parameters:
-K = 3			# Number of factors
-K.hmm.sv = 3		# Number of factors for the common trend model
+K = 4			# Number of factors
+K.hmm.sv = 4		# Number of factors for the common trend model
 useHMM = TRUE		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
 # Note: HMM needs additional adjustments to store the relevant parameters
 #########################################################################################################################
@@ -63,7 +63,7 @@ betaInds = seq(1, C*(K+1), by=K)								# For outcome-specific Beta, use  Beta[,
 
 # Interpolate the data with using cubic splines
 Y <- diff(log(do.call("cbind",lapply(1:C,splineinterpol))))
-
+T = nrow(Y)		
 #########################################################################################################################
 
 # Initialize the main parameters:
@@ -119,7 +119,9 @@ for(nsi in 1:nsims){			# nsi is the simulation index
   
   # Sample Beta, d, and lambda:
   samples = mfdlm(Y, tau, Beta, Et, Gt, Wt, Model, d, splineInfo, lambda)
-  Beta = samples$Beta; d = samples$d; lambda=samples$lambda
+  Beta = samples$Beta
+  d = samples$d
+  lambda=samples$lambda
   
   # Cycle through the outcomes:
   for(c in 1:C) {
@@ -192,8 +194,8 @@ postEt = postEtAll[-(1:burnin),]
 postHt = postHtAll[-(1:burnin),,]
 postGammaSlopes = postGammaSlopesAll[-(1:burnin),]
 dev = devAll[-(1:burnin)];
-# postCount = postCountAll[-(1:burnin),,]
-# postCountAgg = postCountAggAll[-(1:burnin),,]
+ postCount = postCountAll[-(1:burnin),,]
+ postCountAgg = postCountAggAll[-(1:burnin),,]
 S <- colMeans(postSAll[-(1:burnin),,])
 # Fix important parameters at their posterior means:
 Beta = colMeans(postBeta); d = colMeans(postD)
@@ -204,7 +206,7 @@ gammaSlopes = colMeans(postGammaSlopes)
 # Test Data
 
 # Plot the Joint loading curves:
-taugrid = seq(allTaus0[1], allTaus0[m], length.out=24)
+taugrid = seq(allTaus0[1], allTaus0[m], length.out=523)
 Phit = splineInfo$basisPhi(seq(splineInfo$a, splineInfo$b, length.out=length(taugrid)))
 par(mfrow=c(1,1), mai=c(1.1,1,1,.1))
 plot(taugrid, Phit%*%d[,1], type='l', lwd=10, ylim=1.1*range(Phit%*%d[,1:K.hmm.sv]), xlab=expression(tau), ylab=expression(f[k](tau)), main='Common Factor Loading Curves', cex.axis=1.5, cex.lab=2, cex.main=2)
@@ -217,3 +219,89 @@ abline(h=0, col='gray', lwd=4)
 #}
 for(k in 1:K.hmm.sv) lines(taugrid, Phit%*%d[,k], type='l', lwd=10, col=k, lty=k)
 legend('topright', paste('k =', 1:K.hmm.sv), col=1:K.hmm.sv, lty=1:K.hmm.sv, lwd=10, cex=2)
+
+
+
+#########################################################################################################################
+
+# Diagnostics for the FLCs:  trace plots and effective size 
+# Examine quantiles of allTaus for fewer plots
+# FLC trace plot for paper
+quants = c(.02,.25, .5, .75); tau.inds = floor(quantile(1:m, quants))	# equally spaced
+dev.new(); par(mfrow=c(4,4))
+for(k in 1:K.hmm.sv) { 
+  pd = as.mcmc(postDAll[,,k]%*%t(splineInfo$Phi[tau.inds,]))
+  j=1; traceplot(pd[,j], cex.lab=2, cex.axis=1.5, cex.main=2, main = paste('f_k(tau): k = ',k, ', ', quants[j]*100, 'nd quantile of tau',  sep=''))
+  abline(v=burnin, col='gray', lwd=4)
+  for(j in 2:length(tau.inds)) {traceplot(pd[,j],cex.lab=2, cex.axis=1.5, cex.main=2, main = paste('f_k(tau): k = ',k, ', ', quants[j]*100, 'th quantile of tau',  sep='')); 	abline(v=burnin, col='gray', lwd=4)}
+}
+
+# FLC table (exclude burn-in):
+effSize = matrix(0, nrow=K, ncol=length(tau.inds)); rownames(effSize) = paste('k =', 1:K); colnames(effSize) = round(allTaus0[tau.inds],2)
+for(k in 1:K) { 
+  pd = as.mcmc(postD[,,k]%*%t(splineInfo$Phi[tau.inds,])); colnames(pd) = paste('f_k(tau): k = ',k, ', ', quants*100, 'th quantile of tau',  sep='')
+  colnames(pd)[1] =paste('f_k(tau): k = ',k, ', 2nd quantile of tau',  sep='')
+  effSize[k,] = effectiveSize(pd) 
+}
+
+
+# Gamma trace plot for paper
+effSize = matrix(0, nrow=K.hmm.sv, ncol=C-1)
+dev.new();par(mfrow=c(3,4))
+for(c in 2:C){
+  for(k in 1:K.hmm.sv){
+    traceplot(as.mcmc(postGammaSlopesAll[,(c-1)*K + k]), cex.lab=2, cex.axis=1.5, cex.main=2, main = paste(cnames[c], 'slope, k =', k))
+    abline(v=burnin, col='gray', lwd=4)
+    effSize[k,c-1] = effectiveSize(as.mcmc(postGammaSlopes[,(c-1)*K + k]))
+  }
+}
+# Gamma table (exclude burnin):
+print(effSize/(nsims-burnin))
+
+#########################################################################################################################
+
+# DIC computations:
+Dbar = mean(dev) # posterior mean of dev 
+Dhat = 0
+for(c in 1:C) {
+  bc.inds = betaInds[c]:(betaInds[c+1]-1);	yc.inds = outcomeInds[c]:(outcomeInds[c+1]-1)
+  
+  # As before, but now using the posterior means	
+  mu.c = tcrossprod(Beta[,bc.inds], splineInfo$Phi[match(tau[yc.inds], allTaus),]%*%d)
+  Dhat = Dhat + 1/Et[c]*sum((Y[, yc.inds]-mu.c)^2,na.rm=TRUE) + sum(!is.na(Y[, yc.inds]))*log(2*pi*Et[c]) 
+}
+pD = Dbar - Dhat 		# effective number of parameters
+pV = 1/2*var(dev)		# alternative estimate of the effective number of parameters
+DIC = Dbar + pD	 	# DIC
+
+#########################################################################################################################
+
+# Diagnostics for the Betas: trace plots effective size
+# Examine quantiles of 1:T for fewer plots
+quants = c(.15, 0.3, .45, .6, .75, .9)
+t.inds = floor(quantile(1:T, quants))	# equally spaced
+
+# trace plot 
+dev.new();par(mfrow=c(4,4))
+for(c in 1:C){
+  for(k in 1:K.hmm.sv) { 
+    t.date = sample(1:T,1)
+    pb = as.mcmc(postBetaAll[,t.date,(c-1)*K + k])
+    traceplot(pb, cex.lab=2, cex.axis=1.5, cex.main=2, main = paste(cnames[c], ': Beta, k = ', k, ', ', dates[t.date], sep=''))
+    abline(v=burnin, col='gray', lwd=4)
+  }
+}
+
+# table
+effSize = matrix(0, nrow=C*K, ncol=length(t.inds)); colnames(effSize) = paste(dates[t.inds])
+tempnames = NULL
+for(c in 1:C){
+  for(k in 1:K) { 
+    t.inds = sample(1:T,3)
+    pb = as.mcmc(postBeta[,t.inds,(c-1)*K + k])
+    colnames(pb) = paste('beta_{k,t}^{(c)}: k = ',k, ', ', ' c = ',c, ', t = ', dates[t.inds],  sep='')
+    effSize[(c-1)*K + k, ] = effectiveSize(pb)
+    tempnames = c(tempnames, paste('k = ',k, ', ', ' c = ',c, sep=''))
+  }
+}
+rownames(effSize) = tempnames; print(effSize/(nsims-burnin))	

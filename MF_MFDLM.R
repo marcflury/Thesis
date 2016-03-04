@@ -669,7 +669,8 @@ samplePsi = function(resBeta.ck, sigma.t2){
 sampleSlopes = function(B.ck, B.1k, psi.ck, St, sigma.t2){
   
   n = length(B.ck)
-  print(list(n,as.matrix(psi.ck),length(sigma.t2)))
+  jnk <- list(n,as.matrix(psi.ck),length(sigma.t2))
+  save("jnk", file="jnk.robj")
   # Simple regression framework:
   Ytemp = (B.ck[-1] - psi.ck*B.ck[-n])/sqrt(sigma.t2[-1])
   Xtemp = (St[-1]*B.1k[-1] - psi.ck*St[-n]*B.1k[-n])/sqrt(sigma.t2[-1])
