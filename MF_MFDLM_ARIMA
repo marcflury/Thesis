@@ -1,4 +1,4 @@
-[#####################################################################################################
+#####################################################################################################
 # mfdlm() samples (once) the factors Beta AND the factor loading curves f, with the following inputs:
 # Y: the data observation matrix
 # T x TAU, NAs allowed; T is number of time points, TAU is the number of the union of observation points
@@ -76,8 +76,7 @@ mfdlmBeta = function(Y, Et, Gt, Wt, Model, tau, d, splineInfo){
   K = ncol(d)
 
   # F evaluates the FLCs at the outcome-specific observation points
-  F = array(0, c(length(tau), nrow(Gt)))
-  inds = 1:K
+  F = array(0, c(length(tau), nrow(Gt))); inds = 1:K
 
   # Cycle through the outcomes c = 1,...,C:
   for(c in 1:C){
@@ -90,13 +89,7 @@ mfdlmBeta = function(Y, Et, Gt, Wt, Model, tau, d, splineInfo){
     F[yc.inds, inds] = splineInfo$Phi[tauCinds,]%*%d
 
     # Update the column indexing for appropriate block structure
-    if(K==1){
-      inds = inds + 1
-      } else {
-        inds[1] = inds[length(inds)] + 1
-        inds[length(inds)] = inds[length(inds)] + K
-        inds = inds[1]:inds[length(inds)]
-       }
+    if(K==1){inds = inds + 1} else {inds[1] = inds[length(inds)] + 1; inds[length(inds)] = inds[length(inds)] + K; inds = inds[1]:inds[length(inds)]}
   }
 
   # Repeat Et[c] for each outcome-specific number of tau's
@@ -104,8 +97,7 @@ mfdlmBeta = function(Y, Et, Gt, Wt, Model, tau, d, splineInfo){
 
   Model$Z[,,1] = F  # F is a matrix of correct dimensions
   Model$T = Gt 	# Gt is an array of correct dimensions
-  Model$Q = rbind(cbind(Wt, array(0, dim(Wt))),
-            array(0, dim = c(nrow(Wt), 2*ncol(Wt))))
+  Model$Q = Wt	# same
 
   # Check for errors
   if(!is.SSModel(Model)) stop("Error: Model has incorrect dimensions")
@@ -275,57 +267,36 @@ initParams = function(Y, tau, K=NULL, tolCPV = 0.99,  useAllTaus = FALSE){
 
   # For outcome-specific Beta indices, subset with betaInds[c]:(betaInds[c+1]-1)
   betaInds = seq(1, C*(K+1), by=K)
-  F0 = vector("list", C)
-  Beta0 = array(0,c(T, C*K))
-  Et0 = numeric(C);
+  F0 = vector("list", C); Beta0 = array(0,c(T, C*K)); Et0 = numeric(C);
 
   for(c in 1:C){
     # If we use all tau's, then just subset for each outcome; otherwise, smooth the SVD estimates and interpolate the outcome-specific tau's
     if(useAllTaus){
       F0[[c]] = as.matrix(singVal$v[match(tau[outcomeInds[c]:(outcomeInds[c+1]-1)], allTaus),1:K])
-    } else F0[[c]] = apply(as.matrix(singVal$v[,1:K]), 2,
-     function(x){splinefun(useTaus, x, method='natural')(tau[outcomeInds[c]:(outcomeInds[c+1]-1)])})
+    } else F0[[c]] = apply(as.matrix(singVal$v[,1:K]), 2, function(x){splinefun(useTaus, x, method='natural')(tau[outcomeInds[c]:(outcomeInds[c+1]-1)])})
 
     Beta0[,betaInds[c]:(betaInds[c+1]-1)] = (singVal$u%*%diag(singVal$d))[(1:T) + (c-1)*T , 1:K]
 
     # Estimate the observation-level error variance:
-    Et0[c] = 1/sum(!is.na(Y[,outcomeInds[c]:(outcomeInds[c+1]-1)])) *
-    sum((Y[, outcomeInds[c]:(outcomeInds[c+1]-1)] -
-    tcrossprod(Beta0[,betaInds[c]:(betaInds[c+1]-1)], F0[[c]]))^2, na.rm=TRUE)
+    Et0[c] = 1/sum(!is.na(Y[,outcomeInds[c]:(outcomeInds[c+1]-1)])) * sum((Y[, outcomeInds[c]:(outcomeInds[c+1]-1)] - tcrossprod(Beta0[,betaInds[c]:(betaInds[c+1]-1)], F0[[c]]))^2, na.rm=TRUE)
   }
-
-
-
   # Initialize the common basis coefficients
-  Fall = mfdlmFinit(Theta0, Y, Et0, tau, F0, splineInfo)
+  Fall = mfdlmFinit(Beta0, Y, Et0, tau, F0, splineInfo)
   d0 = Fall$d; lambda0 = Fall$lambda; Beta0 = Fall$Beta
 
-
-  # Theta is now containing \beta_{t} and \beta_{t-1} for ARIMA SSM
-  Theta0 <- rbind(Beta0, rbind(0, Beta[-T,]))
-
-  # Therefore also F0 needs to be changed
-  for( c in C){
-    F0[[c]] <- cbind(F0[[c]], array(0, c(1,K)) )
-  }
-
   # To obtain ordering, run a few simple simulations:
-  dArray = array(diag(C*K), c(2*C*K, 2*C*K, 1)) # diagonal
-  Model0 = SSModel(Y~-1+SSMcustom(Z = array(0, c(ncol(Y), 2*C*K)),
-                                  T = dArray, Q = dArray, P1 = diag(10^4, 2*C*K)))
+  dArray = array(diag(C*K), c(C*K, C*K, 1)) # diagonal
+  Model0 = SSModel(Y~-1+SSMcustom(Z = array(0, c(ncol(Y), C*K)), T = dArray, Q = dArray, P1 = diag(10^4, C*K)))
   for(nsi in 1:10){
     samples = mfdlmF(Beta0, Y, Et0, tau, d0, splineInfo, lambda0, orderLambdas = FALSE)
     d0 = samples$d; lambda0 = samples$lambda;
-    Theta0 = mfdlmBeta(Y, Et0, dArray, dArray, Model0, tau, d0, splineInfo)
-    Beta0 <- Theta0[1:T, ]
+    Beta0 = mfdlmBeta(Y, Et0, dArray, dArray, Model0, tau, d0, splineInfo)
     print(paste('Running preliminary simulations: ', nsi,'/10', sep=''))
   }
 
   # Order the k components based on the smoothing parameters, lambda:
   adjOrder = order(lambda0, decreasing = TRUE)
-  lambda0 = lambda0[adjOrder]
-  d0 = d0[,adjOrder]
-
+  lambda0 = lambda0[adjOrder]; d0 = d0[,adjOrder];
   for(c in 1:C){ bc.inds = betaInds[c]:(betaInds[c+1]-1)
   Beta0[,bc.inds] = Beta0[,bc.inds][, adjOrder]}
 
@@ -333,7 +304,6 @@ initParams = function(Y, tau, K=NULL, tolCPV = 0.99,  useAllTaus = FALSE){
   # Might as well initialize all curves to have positive sums
   for(k in 1:K){ if(sum(splineInfo$Phi%*%d0[,k]) < 0){ d0[,k] = - d0[,k]
   Beta0[,seq(from = k, to = K*C, by=K)] = - Beta0[,seq(from = k, to = K*C, by=K)]}}
-
 
   list(Beta0=Beta0, d0=d0, Et0=Et0, lambda0=lambda0, splineInfo=splineInfo, K=K)
 }
@@ -365,8 +335,7 @@ mfdlmFinit = function(Beta, Y, Et, tau, F0, splineInfo){
   d = array(0, c(ncol(Phi), K))
 
   for(k in 1:K){
-    bksum = 0
-    Bksum = 0
+    bksum = 0; Bksum = 0
     for(c in 1:C){
       tauCinds = match(tau[outcomeInds[c]:(outcomeInds[c+1]-1)], allTaus)
       yc.inds = outcomeInds[c]:(outcomeInds[c+1]-1)
@@ -616,7 +585,7 @@ getSplineInfo = function(tau){
 initHMM = function(Beta, K.hmm.sv, useHMM = FALSE, u01 = 1, u00 = 1, u10 = 1, u11 = 1){
 
   # AR(1) parameters:
-  psi = apply(Beta, 2, function(x){arima(x, c(1,1,0), include.mean=FALSE)$coef})
+  psi = apply(Beta, 2, function(x){arima(x, c(1,0,0), include.mean=FALSE)$coef})
 
   # Matrix of states in {0,1}
   S = matrix(0, nrow=T, ncol=C*K)
@@ -655,23 +624,13 @@ initHMM = function(Beta, K.hmm.sv, useHMM = FALSE, u01 = 1, u00 = 1, u10 = 1, u1
       } else S[,ck.inds] = 1
 
       # Sample the slopes
-      if(k <= K.hmm.sv){
-        gammaSlopes[ck.inds] = sampleSlopes(Beta[, ck.inds],
-                                            Beta[,k],
-                                            psi[ck.inds],
-                                            S[,ck.inds],
-                                            rep(1, T)
-                                            )
-        }
+      if(k <= K.hmm.sv) gammaSlopes[ck.inds] = sampleSlopes(Beta[, ck.inds], Beta[,k], psi[ck.inds], S[,ck.inds], rep(1, T))
     }
   }
 
   if(useHMM){
     list(psi=psi, q01=q01, q10=q10, S=S, gammaSlopes=gammaSlopes)
-  } else {
-    # still return S for simpler computations elsewhere
-    list(psi=psi, S=S, gammaSlopes=gammaSlopes)
-  }
+  } else list(psi=psi, S=S, gammaSlopes=gammaSlopes) # still return S for simpler computations elsewhere
 }
 #####################################################################################################
 #####################################################################################################
@@ -710,14 +669,11 @@ samplePsi = function(resBeta.ck, sigma.t2){
 sampleSlopes = function(B.ck, B.1k, psi.ck, St, sigma.t2){
 
   n = length(B.ck)
-
-  # Calculated differences for model
-  dB.ck <- c(0, B.ck[2:n] - B.ck[1:(n-1)])
-  dB.1k <- c(0, B.1k[2:n] - B.1k[1:(n-1)])
-
+  jnk <- list(n,as.matrix(psi.ck),length(sigma.t2))
+  save("jnk", file="jnk.robj")
   # Simple regression framework:
-  Ytemp = (dB.ck[-1] - psi.ck * dB.ck[-n])/sqrt(sigma.t2[-1])
-  Xtemp = (St[-1] * dB.1k[-1] - psi.ck * St[-n] * dB.1k[-n])/sqrt(sigma.t2[-1])
+  Ytemp = (B.ck[-1] - psi.ck*B.ck[-n])/sqrt(sigma.t2[-1])
+  Xtemp = (St[-1]*B.1k[-1] - psi.ck*St[-n]*B.1k[-n])/sqrt(sigma.t2[-1])
 
   Vi = 1/(sum(Xtemp^2) + 10^-8)
   u = sum(Xtemp*Ytemp)
@@ -775,14 +731,16 @@ sampleHMMpar = function(Beta, K.hmm.sv, S, gammaSlopes, psi, ht, c=1, useHMM=FAL
 #####################################################################################################
 #####################################################################################################
 
+
 #####################################################################################################
 # computeGtWtHMM() computes the Gt and Wt matrices that appear in the KFAS sampler for the HMM/CT model
-# Gt: evolution coefficients array, (2*C*K) x (2*C*K) x T
-# Wt: evoution error variance array, (C*K) x (C*K) x T (only one part)
+# Gt: evolution coefficients array, (C*K) x (C*K) x T
+# Wt: evoution error variance array, (C*K) x (C*K) x T
 # S: T x (C*K) matrix of states
 # gammaSlopes: (C*K)-dimensional vector of slopes (w/ appropriate placement of zeros)
 # psi: (C*K)-dimesional vector AR(1) coefficients
 # sigma.t2: T-dimensional vector of error variances from the Beta-level for outcome c, factor k
+# Note: this function is NOT optimized for the CT model, and is rather slow
 #####################################################################################################
 computeGtWtHMM = function(Gt, Wt, S, gammaSlopes, psi, sigma.t2){
 
@@ -793,55 +751,39 @@ computeGtWtHMM = function(Gt, Wt, S, gammaSlopes, psi, sigma.t2){
   # For outcome-specific Beta indices, subset with bc.inds = betaInds[c]:(betaInds[c+1]-1)
   betaInds = seq(1, C*(K+1), by=K)
 
-
+  # i = 1:
   Wt[,,1] = diag(sigma.t2[1,])
+  Gt[,, 1] = diag(psi)# diag(0,C*K)
 
-  Wtfun <- function(t, S, gammaSlopes, psi, sigma.t2, K, C){
-      Q <- array(0, (C*K, C*K))
-      Stgamma <- t(S[t,]) * gammaSlopes
-      for(c in 2:C){
-            Q[, 1:K] <- diag(Stgamma[1:K + (c-1)*K])
+  for(i in 2:T){
+    #Set the usual diagonal SV components:
+    Wt[1:(C*K),1:(C*K),i] = diag(sigma.t2[i,])
+
+    # And the usual diagonal AR(1) model:
+    Gt0 = diag(psi)
+
+    for(c in 2:C){
+      bc.inds = betaInds[c]:(betaInds[c+1]-1)
+
+      # Update the common component based on outcome c
+      Gt0[bc.inds,1:K] = diag(S.gamma.psi1_t[i, bc.inds] - S.gamma.psi_t[i-1, bc.inds])
+
+      # Now update the variance for columns 1:K (and rows 1:K by symmetry)
+      Wt[bc.inds, 1:K,i] = Wt[1:K, bc.inds, i] = diag(S[i,bc.inds]*gammaSlopes[bc.inds]*sigma.t2[i, 1:K])
+
+      # Nested loop without the outcomes
+      for(c2 in 2:C){
+        bc2.inds = betaInds[c2]:(betaInds[c2+1]-1)
+        # Diagonal and off-diagonal (symmetric!)
+        if(all(bc.inds == bc2.inds)){
+          Wt[bc.inds, bc2.inds,i] = Wt[bc.inds, bc2.inds,i] + diag(S[i,bc.inds]*S[i,bc2.inds]*gammaSlopes[bc.inds]*gammaSlopes[bc2.inds]*sigma.t2[i, 1:K])
+        } else Wt[bc.inds, bc2.inds,i] = Wt[bc2.inds, bc.inds,i] = diag(S[i,bc.inds]*S[i,bc2.inds]*gammaSlopes[bc.inds]*gammaSlopes[bc2.inds]*sigma.t2[i, 1:K])
       }
-
-    QW <- Q* rep(sigma.t2[t, 1:K], C)
-    W <- diag(sigma.t2[t,]) + QW + t(QW) + QW %*% t(Q)
-    return(W)
+    }
+    Gt[,, i] = Gt0
   }
-
-WtList <- lapply(2:T, Wtfun, S=S, gammaSlopes=gammaSlopes, psi=psi,
-   sigma.t2=sigma.t2, K=K, C=C)
-for(t in 2:T){
-  Wt[, , t] <- WtList[[t]]
+  list(Gt = Gt, Wt=Wt)
 }
-
-Gtfun <- function(t, S, gammaSlopes, psi, K, C) {
-  Q <- array(0, (dim(Wt)[1:2]))
-  Stgamma <- t(S[t,]) * gammaSlopes
-  St1psigamma <- t(S[t-1,]) * psi * gammaSlopes
-  for(c in 2:C){
-        Q[, 1:K] <- diag(Stgamma[1:K + (c-1)*K])
-  }
-  G1 <- diag(1+psi)
-  G2 <- diag(-psi)
-  for(c in 2:C){
-        G1[, 1:K] <- -(diag(Stgamma[1:K + (c-1)*K]) +
-                       diag(St1psigamma[1:K + (c-1)*K]))
-
-        G2[, 1:K] <- diag(St1psigamma[1:K + (c-1)*K])
-  }
-  G <- rbind(cbind(G1 + Q %*% G1, G2 + Q %*% G2),
-   cbind(array(0, c(C*K, C*K), diag(C*K))))
-   return(G)
-}
-
-GtList <- lapply(2:T, Gtfun, S=S, gammaSlopes=gammaSlopes, psi=psi,
-   sigma.t2=sigma.t2, K=K, C=C)
-for(t in 2:T){
-  Gt[, , t] <- GtList[[t]]
-}
-return(list(Gt = Gt, Wt=Wt))
-}
-
 #####################################################################################################
 #####################################################################################################
 
@@ -904,12 +846,8 @@ sampleHMMstates = function(B.ck, B.1k, psi.ck, St, q01.ck, q10.ck, sigma.t2){
 
   n = length(B.1k)
 
-  # Calculated differences for model
-  dB.ck <- c(0, B.ck[2:n] - B.ck[1:(n-1)])
-  dB.1k <- c(0, B.1k[2:n] - B.1k[1:(n-1)])
-
   # Residuals from AR(1) model:
-  resBc = dB.ck[2:n] - psi.ck * dB.ck[1:(n-1)]
+  resBc = B.ck[2:n] - psi.ck* B.ck[1:(n-1)]
   resBc = c(0,resBc) # for indexing
 
   Stemp = St; counter = 0; notDiverse=TRUE # all 0s or all 1s
@@ -925,14 +863,12 @@ sampleHMMstates = function(B.ck, B.1k, psi.ck, St, q01.ck, q10.ck, sigma.t2){
     # First, consider state = 1
     St[i] = 1
     # Residual contribution from Beta_1k in Beta_ck equation
-    resB1 =  dB.1k[i:(i-1)]*St[i:(i-1)]
-    resB1 = resB1[1] - psi.ck * resB1[2]
+    resB1 =  B.1k[i:(i-1)]*St[i:(i-1)]; resB1 = resB1[1] - psi.ck*resB1[2]
     ldist1 =  log(computeTransitProbs(St[i-1], 1, q01.ck, q10.ck))-.5*(resBc[i]-resB1)^2/sigma.t2[i]
 
     # Next, consider state = 0
     St[i] = 0
-    resB1 =  dB.1k[i:(i-1)] * St[i:(i-1)]
-    resB1 = resB1[1] - psi.ck*resB1[2]
+    resB1 =  B.1k[i:(i-1)]*St[i:(i-1)]; resB1 = resB1[1] - psi.ck*resB1[2]
     ldist0 = log(computeTransitProbs(St[i-1], 0, q01.ck, q10.ck))-.5*(resBc[i]-resB1)^2/sigma.t2[i]
 
     # Compare
@@ -940,20 +876,15 @@ sampleHMMstates = function(B.ck, B.1k, psi.ck, St, q01.ck, q10.ck, sigma.t2){
 
     for(i in (n-1):2){
       St[i] = 1
-      resB1 = dB.1k[(i+1):(i-1)]*St[(i+1):(i-1)]
+      resB1 = B.1k[(i+1):(i-1)]*St[(i+1):(i-1)]
       resB1 = c(resB1%*%c(1, -psi.ck,0), resB1%*%c(0,1, -psi.ck))
-      ldist1 = log(computeTransitProbs(1, St[i+1], q01.ck, q10.ck)) +
-      og(computeTransitProbs(St[i-1], 1, q01.ck, q10.ck)) -
-      .5 * sum((resBc[(i+1):(i)] - resB1)^2/sigma.t2[(i+1):i])
+      ldist1 = log(computeTransitProbs(1, St[i+1], q01.ck, q10.ck))+log(computeTransitProbs(St[i-1], 1, q01.ck, q10.ck))-.5*sum((resBc[(i+1):(i)] - resB1)^2/sigma.t2[(i+1):i])
 
 
       St[i] = 0
-      resB1 = dB.1k[(i+1):(i-1)] * St[(i+1):(i-1)]
+      resB1 = B.1k[(i+1):(i-1)]*St[(i+1):(i-1)]
       resB1 = c(resB1%*%c(1, -psi.ck,0), resB1%*%c(0,1, -psi.ck))
-      ldist0 = log(computeTransitProbs(0, St[i+1], q01.ck, q10.ck)) +
-      log(computeTransitProbs(St[i-1], 0, q01.ck, q10.ck))-
-      .5*sum((resBc[(i+1):(i)] - resB1)^2/sigma.t2[(i+1):i])
-
+      ldist0 = log(computeTransitProbs(0, St[i+1], q01.ck, q10.ck)) + log(computeTransitProbs(St[i-1], 0, q01.ck, q10.ck))-.5*sum((resBc[(i+1):(i)] - resB1)^2/sigma.t2[(i+1):i])
       if((ldist0 - ldist1) < log(1/runif(1)-1)) St[i] = 1
     }
 
@@ -962,16 +893,12 @@ sampleHMMstates = function(B.ck, B.1k, psi.ck, St, q01.ck, q10.ck, sigma.t2){
     pi0 = q10.ck/(q01.ck+q10.ck) # = P(S_t = 0)
 
     St[i] = 1
-    resB1 = dB.1k[(i+1):i]*St[(i+1):i]
-    resB1 = resB1[1] - psi.ck*resB1[2]
+    resB1 = B.1k[(i+1):i]*St[(i+1):i]; resB1 = resB1[1] - psi.ck*resB1[2]
     ldist1 =  log(1-pi0) + log(computeTransitProbs(1, St[i+1], q01.ck, q10.ck))-.5*(resBc[i+1]-resB1)^2/sigma.t2[i+1]
 
     St[i] = 0
-    resB1 = dB.1k[(i+1):i]*St[(i+1):i]
-    resB1 = resB1[1] - psi.ck*resB1[2]
-    ldist0 =  log(pi0) + log(computeTransitProbs(0, St[i+1], q01.ck, q10.ck))-
-    .5*(resBc[i+1]-resB1)^2/sigma.t2[i+1]
-
+    resB1 = B.1k[(i+1):i]*St[(i+1):i]; resB1 = resB1[1] - psi.ck*resB1[2]
+    ldist0 =  log(pi0) + log(computeTransitProbs(0, St[i+1], q01.ck, q10.ck))-.5*(resBc[i+1]-resB1)^2/sigma.t2[i+1]
     if((ldist0 - ldist1) < log(1/runif(1)-1)) St[i] = 1
 
     if(!all(St==0) && !all(St==1)) notDiverse=FALSE
@@ -1129,4 +1056,3 @@ splineinterpol <- function(c){
 
   return(Y0c)
 }
-]

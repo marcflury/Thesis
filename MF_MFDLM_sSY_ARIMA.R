@@ -84,8 +84,8 @@ q10 = initsHMMpar$q10
 S = initsHMMpar$S
 gammaSlopes = initsHMMpar$gammaSlopes
 
-# Initialize the SV parameters (just using independent AR(1) models for Beta_ck):
-initsSVpar = initSV(apply(Beta, 2, function(x){arima(x, c(1,0,0), include.mean=FALSE)$resid[-1]}), C)
+# Initialize the SV parameters (just using independent ARIMA(1,1,0) models for Beta_ck):
+initsSVpar = initSV(apply(Beta, 2, function(x){arima(x, c(1,1,0), include.mean=FALSE)$resid[-1]}), C)
 ht = initsSVpar$ht
 svMu = initsSVpar$svMu
 svPhi = initsSVpar$svPhi
@@ -95,20 +95,29 @@ Wt = initsSVpar$Wt
 #########################################################################################################################
 
 # Set up the state space model
-Gt = array(0, c(C*K, C*K, T)); Gt[1:(C*K), 1:(C*K),] = diag(psi); Wt = initsSVpar$Wt
+Gt = array(0, c(2*C*K, 2*C*K, T))
+Gt[1:(C*K),  1:(C*K),] = diag(psi)+1
+Gt[(C*K+1):2*(C*K),  (C*K+1):2*(C*K),] = diag(C*K)
+Gt[(1:(C*K),  (C*K+1):2*(C*K),] = diag(-psi)
+Wt = initsSVpar$Wt
 
-Model = SSModel(Y~-1+SSMcustom(Z = array(0, c(ncol(Y), nrow(Gt))),
-                               T = Gt, Q = Wt, P1 = diag(10^4, nrow(Gt))))
+Model = SSModel(Y~-1+SSMcustom(Z = array(0, c(ncol(Y), nrow(Gt))), T = Gt,
+                               Q = rbind(cbind(Wt, array(0, dim(Wt))),
+                                         array(0, dim = c(nrow(Wt), 2*ncol(Wt)))),
+                               P1 = diag(10^4, nrow(Gt))))
 
 #########################################################################################################################
 
 # Parameters to save:
-postBetaAll = array(0, c(nsims, dim(Beta))); postDAll = array(0, c(nsims, dim(d)))
+postBetaAll = array(0, c(nsims, dim(Beta)))
+ postDAll = array(0, c(nsims, dim(d)))
 postLambdaAll = array(0, c(nsims, length(lambda)))
 postEtAll = array(0, c(nsims, C))
-postHtAll = array(0, c(nsims, dim(ht))); postGammaSlopesAll = array(0, c(nsims, C*K))
+postHtAll = array(0, c(nsims, dim(ht)))
+postGammaSlopesAll = array(0, c(nsims, C*K))
 devAll = numeric(nsims)  # Deviance
-postCountAll = array(0, c(nsims, T-1, C*K)); postCountAggAll = array(0, c(nsims, T-1, C-1)); # For outlier plot
+postCountAll = array(0, c(nsims, T-1, C*K))
+postCountAggAll = array(0, c(nsims, T-1, C-1)) # For outlier plot
 postSAll <-  array(0, c(nsims, dim(S)))
 
 #########################################################################################################################
@@ -189,18 +198,21 @@ print(paste('Total time: ', round((proc.time()[3] - timer0)/60), 'minutes'))
 
 #########################################################################################################################
 # Discard burn-in in duplicate arrays (for some variables)
-postBeta <- postBetaAll[-(1:burnin),,]; postD = postDAll[-(1:burnin),,]
-postEt = postEtAll[-(1:burnin),]
-postHt = postHtAll[-(1:burnin),,]
-postGammaSlopes = postGammaSlopesAll[-(1:burnin),]
-dev = devAll[-(1:burnin)];
- postCount = postCountAll[-(1:burnin),,]
- postCountAgg = postCountAggAll[-(1:burnin),,]
+postBeta <- postBetaAll[-(1:burnin),,]
+postD <- postDAll[-(1:burnin),,]
+postEt <- postEtAll[-(1:burnin),]
+postHt <- postHtAll[-(1:burnin),,]
+postGammaSlopes <- postGammaSlopesAll[-(1:burnin),]
+dev <- devAll[-(1:burnin)]
+postCount <- postCountAll[-(1:burnin),,]
+postCountAgg <- postCountAggAll[-(1:burnin),,]
 S <- colMeans(postSAll[-(1:burnin),,])
 # Fix important parameters at their posterior means:
-Beta = colMeans(postBeta); d = colMeans(postD)
-Et = colMeans(postEt); ht = colMeans(postHt)
-gammaSlopes = colMeans(postGammaSlopes)
+Beta <- colMeans(postBeta)
+d <- colMeans(postD)
+Et <- colMeans(postEt)
+ht <- colMeans(postHt)
+gammaSlopes <- colMeans(postGammaSlopes)
 
 
 # Test Data
