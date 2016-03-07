@@ -1,6 +1,6 @@
 rm(list=ls(all=TRUE))
 
-set.seed(1990) # to reproduce (most of) the results from the paper
+set.seed(1990) 
 
 #########################################################################################################################
 
@@ -24,7 +24,7 @@ library(truncnorm)
 #library(dlm)
 
 # File containing functions
-source("MF_MFDLM.R")
+source("MF_MFDLM_ARIMA.R")
 
 # This may improve efficiency in some cases:
 #library(compiler);  enableJIT(3)
@@ -131,6 +131,7 @@ for(nsi in 1:nsims){			# nsi is the simulation index
   Beta = samples$Beta
   d = samples$d
   lambda=samples$lambda
+  dBeta  <- rbind(0, Beta[2:T, ]- Beta[1:(T-1), ])
 
   # Cycle through the outcomes:
   for(c in 1:C) {
@@ -144,7 +145,7 @@ for(nsi in 1:nsims){			# nsi is the simulation index
     Et[c] = sampleEt(Y[, yc.inds], mu.c)
 
     # Sample the AR(1) and slope parameters (and other HMM parameters, if desired)
-    shmm = sampleHMMpar(Beta, K.hmm.sv, S, gammaSlopes, psi, ht, c, useHMM, q01, q10)
+    shmm = sampleHMMpar(dBeta, K.hmm.sv, S, gammaSlopes, psi, ht, c, useHMM, q01, q10)
     gammaSlopes <- shmm$gammaSlopes
     psi         <- shmm$psi
     if(useHMM){
@@ -155,9 +156,16 @@ for(nsi in 1:nsims){			# nsi is the simulation index
 
     # Sample the stochastic volatility parameters:
     if(c > 1){
-      resBeta.c = Beta[, bc.inds] - S[,bc.inds]*Beta[,1:K]*matrix(rep(gammaSlopes[bc.inds], T), nrow=T, byrow=TRUE)
-      resBeta.c = resBeta.c[-1,] -  matrix(rep(psi[bc.inds], T-1), nrow=T-1, byrow=TRUE)*resBeta.c[-nrow(resBeta.c),]
-    } else resBeta.c = Beta[-1, bc.inds] - matrix(rep(psi[bc.inds], T-1), nrow=T-1, byrow=TRUE)*Beta[-T, bc.inds]
+      resBeta.c = dBeta[, bc.inds] - S[,bc.inds] * dBeta[,1:K] *
+                 matrix(rep(gammaSlopes[bc.inds], T), nrow=T, byrow=TRUE)
+      resBeta.c = resBeta.c[-1,] -
+                  matrix(rep(psi[bc.inds], T-1), nrow=T-1, byrow=TRUE) *
+                  resBeta.c[-nrow(resBeta.c),]
+    } else{
+      resBeta.c = Beta[-1, bc.inds] -
+      matrix(rep(psi[bc.inds], T-1), nrow=T-1, byrow=TRUE) *
+      Beta[-T, bc.inds]
+      }
 
     samples = sampleSV(resBeta.c,  ht[, bc.inds], svMu[bc.inds], svPhi[bc.inds], svSigma[bc.inds], svOffset=10^-6)
     ht[, bc.inds] <- samples$ht.c
@@ -174,7 +182,8 @@ for(nsi in 1:nsims){			# nsi is the simulation index
     }
 
     # Compute the (observation-level) deviance, summing over c=1,...,C
-    devAll[nsi] = devAll[nsi] + 1/Et[c]*sum((Y[, yc.inds]-mu.c)^2,na.rm=TRUE) + sum(!is.na(Y[, yc.inds]))*log(2*pi*Et[c])
+    devAll[nsi] = devAll[nsi] + 1/Et[c] * sum((Y[, yc.inds]-mu.c)^2,na.rm=TRUE) +
+     sum(!is.na(Y[, yc.inds]))* log(2 * pi * Et[c])
   }
 
   # Compute Gt and Wt matrices for HMM; common trend model is a submodel (Note: this is not efficient)

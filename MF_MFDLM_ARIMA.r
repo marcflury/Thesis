@@ -111,7 +111,9 @@ mfdlmBeta = function(Y, Et, Gt, Wt, Model, tau, d, splineInfo){
   if(!is.SSModel(Model)) stop("Error: Model has incorrect dimensions")
 
   # Run the sampler
-  simulateSSM(Model, "states", nsim = 1, antithetics=FALSE, filtered=FALSE)[,,1]
+  Theta <- simulateSSM(Model, "states", nsim = 1, antithetics=FALSE, filtered=FALSE)[,,1]
+
+  return(Theta[1:T, ])
 
   # Could instead use a "streamlined" version of the KFAS function, with redundant computations removed (Note: no checks for errors!)
   # Must first define modelInfo = getModelInfo(Model), which only needs to be computed (and stored) once, before running MCMC
@@ -741,7 +743,7 @@ sampleSlopes = function(B.ck, B.1k, psi.ck, St, sigma.t2){
 # q01: transition probability from 0 to 1 in HMM model
 # q10: transition probability from 1 to 0 in HMM model
 #####################################################################################################
-sampleHMMpar = function(Beta, K.hmm.sv, S, gammaSlopes, psi, ht, c=1, useHMM=FALSE, q01 = NULL, q10 = NULL){
+sampleHMMpar = function(dBeta, K.hmm.sv, S, gammaSlopes, psi, ht, c=1, useHMM=FALSE, q01 = NULL, q10 = NULL){
 
   for(k in 1:K) {
     # Useful indices for factor k, outcome c:
@@ -750,7 +752,12 @@ sampleHMMpar = function(Beta, K.hmm.sv, S, gammaSlopes, psi, ht, c=1, useHMM=FAL
     if(c > 1){
       if(useHMM){
         # Sample the states
-        S[, ck.inds] = sampleHMMstates(Beta[, ck.inds], gammaSlopes[ck.inds]*Beta[,k], psi[ck.inds], S[,ck.inds], q01[ck.inds], q10[ck.inds], exp(ht[, ck.inds]))
+        S[, ck.inds] = sampleHMMstates(dBeta[, ck.inds],
+                                       gammaSlopes[ck.inds]*dBeta[,k],
+                                       psi[ck.inds], S[,ck.inds],
+                                       q01[ck.inds], q10[ck.inds],
+                                       exp(ht[, ck.inds])
+                                       )
 
         # Sample q01 and q10
         qtemp = sampleTransitProbs(S[, ck.inds])
@@ -759,7 +766,8 @@ sampleHMMpar = function(Beta, K.hmm.sv, S, gammaSlopes, psi, ht, c=1, useHMM=FAL
       }
 
       # Sample the slopes
-      if(k <= K.hmm.sv) gammaSlopes[ck.inds] = sampleSlopes(Beta[, ck.inds], Beta[,k], psi[ck.inds], S[,ck.inds], exp(ht[, ck.inds]))
+      if(k <= K.hmm.sv) gammaSlopes[ck.inds] = sampleSlopes(dBeta[,
+         ck.inds], dBeta[,k], psi[ck.inds], S[,ck.inds], exp(ht[, ck.inds]))
 
       # Sample the AR(1) coefficients:
       resBeta.ck = Beta[,ck.inds] - S[, ck.inds]*gammaSlopes[ck.inds]*Beta[,k]
@@ -900,13 +908,9 @@ sampleTransitProbs = function(S.ck, u01 = 1, u00 = 10, u10 = 1, u11 = 10){
 # sigma.t2: T-dimensional vector of error variances from the Beta-level for outcome c, factor k
 # See Albert and Chib, 1993, for more details
 #####################################################################################################
-sampleHMMstates = function(B.ck, B.1k, psi.ck, St, q01.ck, q10.ck, sigma.t2){
+sampleHMMstates = function(dB.ck, dB.1k, psi.ck, St, q01.ck, q10.ck, sigma.t2){
 
-  n = length(B.1k)
-
-  # Calculated differences for model
-  dB.ck <- c(0, B.ck[2:n] - B.ck[1:(n-1)])
-  dB.1k <- c(0, B.1k[2:n] - B.1k[1:(n-1)])
+  n = length(dB.1k)
 
   # Residuals from AR(1) model:
   resBc = dB.ck[2:n] - psi.ck * dB.ck[1:(n-1)]
@@ -979,7 +983,7 @@ sampleHMMstates = function(B.ck, B.1k, psi.ck, St, q01.ck, q10.ck, sigma.t2){
   if(counter==50) print('Note: did not sample S_t')
 
   # Return the states:
-  St
+  return(St)
 }
 #####################################################################################################
 #####################################################################################################
