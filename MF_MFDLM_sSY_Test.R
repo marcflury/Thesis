@@ -5,12 +5,12 @@ set.seed(1990) # to reproduce (most of) the results from the paper
 #########################################################################################################################
 
 # MCMC parameters:
-nsims =  1e4 		# Total number of simulations
-burnin = 0.2*nsims		# Burn-in
+nsims =  7000 		# Total number of simulations
+burnin = 2000		# Burn-in
 
 # FDLM parameters:
-K = 4			# Number of factors
-K.hmm.sv = 4		# Number of factors for the common trend model
+K = 3			# Number of factors
+K.hmm.sv = 3		# Number of factors for the common trend model
 useHMM = TRUE		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
 # Note: HMM needs additional adjustments to store the relevant parameters
 #########################################################################################################################
@@ -62,7 +62,7 @@ betaInds = seq(1, C*(K+1), by=K)								# For outcome-specific Beta, use  Beta[,
 ####################################
 
 # Interpolate the data with using cubic splines
-Y <- diff(log(do.call("cbind",lapply(1:C,splineinterpol))))
+Y <- do.call("cbind",lapply(1:C,splineinterpol))
 T = nrow(Y)		
 #########################################################################################################################
 

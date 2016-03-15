@@ -1,17 +1,17 @@
 rm(list=ls(all=TRUE))
 
-set.seed(1990) 
+set.seed(1990)
 
 #########################################################################################################################
 
 # MCMC parameters:
-nsims =  7000 		# Total number of simulations
+nsims =  7000		# Total number of simulations
 burnin = 2000		# Burn-in
 
 # FDLM parameters:
-K = 3			# Number of factors
-K.hmm.sv = 3		# Number of factors for the common trend model
-useHMM = TRUE		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
+K = 4			# Number of factors
+K.hmm.sv = 4		# Number of factors for the common trend model
+useHMM = FALSE		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
 # Note: HMM needs additional adjustments to store the relevant parameters
 #########################################################################################################################
 
@@ -75,17 +75,18 @@ lambda = inits$lambda0
 splineInfo = inits$splineInfo
 K = inits$K
 betaInds = seq(1, C*(K+1), by=K)
-
+  dBeta  <- rbind(0, Beta[2:T, ]- Beta[1:(T-1), ])
 # Initialize the AR(1) and HMM parameters:
-initsHMMpar = initHMM(Beta, K.hmm.sv, useHMM)
+initsHMMpar = initHMM(dBeta, K.hmm.sv, useHMM)
 psi = initsHMMpar$psi
 q01 = initsHMMpar$q01
 q10 = initsHMMpar$q10
 S = initsHMMpar$S
 gammaSlopes = initsHMMpar$gammaSlopes
 
-# Initialize the SV parameters (just using independent ARIMA(1,1,0) models for Beta_ck):
-initsSVpar = initSV(apply(Beta, 2, function(x){arima(x, c(1,1,0), include.mean=FALSE)$resid[-1]}), C)
+
+# Initialize the SV parameters (just using independent ARIMA(1,0,0) models for Beta_ck):
+initsSVpar = initSV(apply(Beta, 2, function(x){arima(x, c(1,0,0), include.mean=FALSE)$resid[-1]}), C)
 ht = initsSVpar$ht
 svMu = initsSVpar$svMu
 svPhi = initsSVpar$svPhi
@@ -96,21 +97,31 @@ Wt = initsSVpar$Wt
 
 # Set up the state space model
 Gt = array(0, c(2*C*K, 2*C*K, T))
-Gt[1:(C*K),  1:(C*K),] = diag(psi)+1
-Gt[(C*K+1):2*(C*K),  (C*K+1):2*(C*K),] = diag(C*K)
-Gt[(1:(C*K),  (C*K+1):2*(C*K),] = diag(-psi)
+
+Gt[,,1:T] <- rbind(cbind(diag(1, C*K, C*K), - diag(C*K)),
+                   cbind(diag(C*K), array(0, dim = c(C*K, C*K))))
 Wt = initsSVpar$Wt
 
+# Compute Gt and Wt matrices for HMM; common trend model is a submodel (Note: this is not efficient)
+GtWt <- computeGtWtHMM(Gt, Wt, S, gammaSlopes, psi, exp(ht))
+
+Wt <- GtWt$Wt
+Gt <- GtWt$Gt
+
+dWt <- ifelse(length(dim(Wt))==3, dim(Wt)[3], 1)
+Q <- array(0, c(2*C*K, 2*C*K, dWt))
+Q[1:(C*K), 1:(C*K), ] <- Wt
+Q[(C*K+1):(2*C*K), (C*K+1):(2*C*K),] <- diag(C*K)
+
 Model = SSModel(Y~-1+SSMcustom(Z = array(0, c(ncol(Y), nrow(Gt))), T = Gt,
-                               Q = rbind(cbind(Wt, array(0, dim(Wt))),
-                                         array(0, dim = c(nrow(Wt), 2*ncol(Wt)))),
-                               P1 = diag(10^4, nrow(Gt))))
+                               R = diag(c(rep(1,C*K),rep(0,C*K))),
+                               Q = Q, P1 = diag(10^4, nrow(Gt))))
 
 #########################################################################################################################
 
 # Parameters to save:
 postBetaAll = array(0, c(nsims, dim(Beta)))
- postDAll = array(0, c(nsims, dim(d)))
+postDAll = array(0, c(nsims, dim(d)))
 postLambdaAll = array(0, c(nsims, length(lambda)))
 postEtAll = array(0, c(nsims, C))
 postHtAll = array(0, c(nsims, dim(ht)))
@@ -124,14 +135,15 @@ postSAll <-  array(0, c(nsims, dim(S)))
 
 # Now, run the MCMC
 timer0 = proc.time()[3]			# for timing the sampler
-for(nsi in 1:nsims){			# nsi is the simulation index
-
+for(nsi in 1:nsims){
+  # nsi is the simulation index
   # Sample Beta, d, and lambda:
   samples = mfdlm(Y, tau, Beta, Et, Gt, Wt, Model, d, splineInfo, lambda)
   Beta = samples$Beta
   d = samples$d
   lambda=samples$lambda
   dBeta  <- rbind(0, Beta[2:T, ]- Beta[1:(T-1), ])
+  Theta <- samples$Theta
 
   # Cycle through the outcomes:
   for(c in 1:C) {
@@ -142,37 +154,43 @@ for(nsi in 1:nsims){			# nsi is the simulation index
     mu.c = tcrossprod(Beta[,bc.inds], splineInfo$Phi[match(tau[yc.inds], allTaus),]%*%d)
 
     # Observation error variance
-    Et[c] = sampleEt(Y[, yc.inds], mu.c)
 
     # Sample the AR(1) and slope parameters (and other HMM parameters, if desired)
     shmm = sampleHMMpar(dBeta, K.hmm.sv, S, gammaSlopes, psi, ht, c, useHMM, q01, q10)
     gammaSlopes <- shmm$gammaSlopes
     psi         <- shmm$psi
+
     if(useHMM){
       S           <- shmm$S
       q01         <- shmm$q01
       q10         <- shmm$q10
-      }
+    }
 
     # Sample the stochastic volatility parameters:
     if(c > 1){
-      resBeta.c = dBeta[, bc.inds] - S[,bc.inds] * dBeta[,1:K] *
-                 matrix(rep(gammaSlopes[bc.inds], T), nrow=T, byrow=TRUE)
-      resBeta.c = resBeta.c[-1,] -
-                  matrix(rep(psi[bc.inds], T-1), nrow=T-1, byrow=TRUE) *
-                  resBeta.c[-nrow(resBeta.c),]
-    } else{
-      resBeta.c = Beta[-1, bc.inds] -
-      matrix(rep(psi[bc.inds], T-1), nrow=T-1, byrow=TRUE) *
-      Beta[-T, bc.inds]
-      }
+      wt <- dBeta[, bc.inds] - S[,bc.inds] * dBeta[,1:K] *
+        matrix(rep(gammaSlopes[bc.inds], T), nrow=T, byrow=TRUE)
 
-    samples = sampleSV(resBeta.c,  ht[, bc.inds], svMu[bc.inds], svPhi[bc.inds], svSigma[bc.inds], svOffset=10^-6)
-    ht[, bc.inds] <- samples$ht.c
-    svMu[bc.inds] <- samples$svMu.c
-    svPhi[bc.inds] <- samples$svPhi.c
-    svSigma[bc.inds] <- samples$svSigma.c
-    Wt[bc.inds, bc.inds,] <- samples$Wt.c
+      resBeta.c = wt[-1,] -
+        matrix(rep(psi[bc.inds], T-1), nrow=T-1, byrow=TRUE) *
+        wt[-T,]
+    } else{
+      resBeta.c = dBeta[-1, bc.inds] -
+        matrix(rep(psi[bc.inds], T-1), nrow=T-1, byrow=TRUE) *
+        dBeta[-T, bc.inds]
+    }
+
+  samples = sampleSV(resBeta.c,  ht[, bc.inds], svMu[bc.inds], svPhi[bc.inds], svSigma[bc.inds], svOffset=10^-6)
+  ht[, bc.inds] <- samples$ht.c
+  svMu[bc.inds] <- samples$svMu.c
+  svPhi[bc.inds] <- samples$svPhi.c
+  svSigma[bc.inds] <- samples$svSigma.c
+  Wt[bc.inds, bc.inds,] <- samples$Wt.c
+
+
+
+
+
 
     if(c > 1){
       # Standardized residual diagnostic/outlier plot:
@@ -183,13 +201,15 @@ for(nsi in 1:nsims){			# nsi is the simulation index
 
     # Compute the (observation-level) deviance, summing over c=1,...,C
     devAll[nsi] = devAll[nsi] + 1/Et[c] * sum((Y[, yc.inds]-mu.c)^2,na.rm=TRUE) +
-     sum(!is.na(Y[, yc.inds]))* log(2 * pi * Et[c])
+      sum(!is.na(Y[, yc.inds]))* log(2 * pi * Et[c])
   }
 
   # Compute Gt and Wt matrices for HMM; common trend model is a submodel (Note: this is not efficient)
   GtWt <- computeGtWtHMM(Gt, Wt, S, gammaSlopes, psi, exp(ht))
-  Gt <- GtWt$Gt
+
   Wt <- GtWt$Wt
+  Gt <- GtWt$Gt
+
 
   # Store the samples, respecting the burn-in and thinning
   postBetaAll[nsi,,] <- Beta
@@ -240,89 +260,3 @@ abline(h=0, col='gray', lwd=4)
 #}
 for(k in 1:K.hmm.sv) lines(taugrid, Phit%*%d[,k], type='l', lwd=10, col=k, lty=k)
 legend('topright', paste('k =', 1:K.hmm.sv), col=1:K.hmm.sv, lty=1:K.hmm.sv, lwd=10, cex=2)
-
-
-
-#########################################################################################################################
-
-# Diagnostics for the FLCs:  trace plots and effective size
-# Examine quantiles of allTaus for fewer plots
-# FLC trace plot for paper
-quants = c(.02,.25, .5, .75); tau.inds = floor(quantile(1:m, quants))	# equally spaced
-dev.new(); par(mfrow=c(4,4))
-for(k in 1:K.hmm.sv) {
-  pd = as.mcmc(postDAll[,,k]%*%t(splineInfo$Phi[tau.inds,]))
-  j=1; traceplot(pd[,j], cex.lab=2, cex.axis=1.5, cex.main=2, main = paste('f_k(tau): k = ',k, ', ', quants[j]*100, 'nd quantile of tau',  sep=''))
-  abline(v=burnin, col='gray', lwd=4)
-  for(j in 2:length(tau.inds)) {traceplot(pd[,j],cex.lab=2, cex.axis=1.5, cex.main=2, main = paste('f_k(tau): k = ',k, ', ', quants[j]*100, 'th quantile of tau',  sep='')); 	abline(v=burnin, col='gray', lwd=4)}
-}
-
-# FLC table (exclude burn-in):
-effSize = matrix(0, nrow=K, ncol=length(tau.inds)); rownames(effSize) = paste('k =', 1:K); colnames(effSize) = round(allTaus0[tau.inds],2)
-for(k in 1:K) {
-  pd = as.mcmc(postD[,,k]%*%t(splineInfo$Phi[tau.inds,])); colnames(pd) = paste('f_k(tau): k = ',k, ', ', quants*100, 'th quantile of tau',  sep='')
-  colnames(pd)[1] =paste('f_k(tau): k = ',k, ', 2nd quantile of tau',  sep='')
-  effSize[k,] = effectiveSize(pd)
-}
-
-
-# Gamma trace plot for paper
-effSize = matrix(0, nrow=K.hmm.sv, ncol=C-1)
-dev.new();par(mfrow=c(3,4))
-for(c in 2:C){
-  for(k in 1:K.hmm.sv){
-    traceplot(as.mcmc(postGammaSlopesAll[,(c-1)*K + k]), cex.lab=2, cex.axis=1.5, cex.main=2, main = paste(cnames[c], 'slope, k =', k))
-    abline(v=burnin, col='gray', lwd=4)
-    effSize[k,c-1] = effectiveSize(as.mcmc(postGammaSlopes[,(c-1)*K + k]))
-  }
-}
-# Gamma table (exclude burnin):
-print(effSize/(nsims-burnin))
-
-#########################################################################################################################
-
-# DIC computations:
-Dbar = mean(dev) # posterior mean of dev
-Dhat = 0
-for(c in 1:C) {
-  bc.inds = betaInds[c]:(betaInds[c+1]-1);	yc.inds = outcomeInds[c]:(outcomeInds[c+1]-1)
-
-  # As before, but now using the posterior means
-  mu.c = tcrossprod(Beta[,bc.inds], splineInfo$Phi[match(tau[yc.inds], allTaus),]%*%d)
-  Dhat = Dhat + 1/Et[c]*sum((Y[, yc.inds]-mu.c)^2,na.rm=TRUE) + sum(!is.na(Y[, yc.inds]))*log(2*pi*Et[c])
-}
-pD = Dbar - Dhat 		# effective number of parameters
-pV = 1/2*var(dev)		# alternative estimate of the effective number of parameters
-DIC = Dbar + pD	 	# DIC
-
-#########################################################################################################################
-
-# Diagnostics for the Betas: trace plots effective size
-# Examine quantiles of 1:T for fewer plots
-quants = c(.15, 0.3, .45, .6, .75, .9)
-t.inds = floor(quantile(1:T, quants))	# equally spaced
-
-# trace plot
-dev.new();par(mfrow=c(4,4))
-for(c in 1:C){
-  for(k in 1:K.hmm.sv) {
-    t.date = sample(1:T,1)
-    pb = as.mcmc(postBetaAll[,t.date,(c-1)*K + k])
-    traceplot(pb, cex.lab=2, cex.axis=1.5, cex.main=2, main = paste(cnames[c], ': Beta, k = ', k, ', ', dates[t.date], sep=''))
-    abline(v=burnin, col='gray', lwd=4)
-  }
-}
-
-# table
-effSize = matrix(0, nrow=C*K, ncol=length(t.inds)); colnames(effSize) = paste(dates[t.inds])
-tempnames = NULL
-for(c in 1:C){
-  for(k in 1:K) {
-    t.inds = sample(1:T,3)
-    pb = as.mcmc(postBeta[,t.inds,(c-1)*K + k])
-    colnames(pb) = paste('beta_{k,t}^{(c)}: k = ',k, ', ', ' c = ',c, ', t = ', dates[t.inds],  sep='')
-    effSize[(c-1)*K + k, ] = effectiveSize(pb)
-    tempnames = c(tempnames, paste('k = ',k, ', ', ' c = ',c, sep=''))
-  }
-}
-rownames(effSize) = tempnames; print(effSize/(nsims-burnin))
