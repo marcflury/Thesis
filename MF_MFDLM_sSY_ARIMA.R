@@ -11,7 +11,7 @@ burnin = 2000		# Burn-in
 # FDLM parameters:
 K = 4			# Number of factors
 K.hmm.sv = 4		# Number of factors for the common trend model
-useHMM = FALSE		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
+useHMM = TRUE		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
 # Note: HMM needs additional adjustments to store the relevant parameters
 #########################################################################################################################
 
@@ -35,7 +35,8 @@ source("MF_MFDLM_ARIMA.R")
 load("Data.RData")
 
 Data["2015-09-04",525:1047] <- NA # 25% percent change in one day -> outlier
-Y <- Data
+
+Y <- Data[rownames(Data)[1:756], ]
 
 
 C = 2							# Number of outcomes
@@ -86,7 +87,7 @@ gammaSlopes = initsHMMpar$gammaSlopes
 
 
 # Initialize the SV parameters (just using independent ARIMA(1,0,0) models for Beta_ck):
-initsSVpar = initSV(apply(Beta, 2, function(x){arima(x, c(1,0,0), include.mean=FALSE)$resid[-1]}), C)
+initsSVpar = initSV(apply(dBeta, 2, function(x){arima(x, c(1,0,0), include.mean=FALSE)$resid[-1]}), C)
 ht = initsSVpar$ht
 svMu = initsSVpar$svMu
 svPhi = initsSVpar$svPhi
@@ -103,7 +104,7 @@ Gt[,,1:T] <- rbind(cbind(diag(1, C*K, C*K), - diag(C*K)),
 Wt = initsSVpar$Wt
 
 # Compute Gt and Wt matrices for HMM; common trend model is a submodel (Note: this is not efficient)
-GtWt <- computeGtWtHMM(Gt, Wt, S, gammaSlopes, psi, exp(ht))
+GtWt <- computeGtWtHMM(S, gammaSlopes, psi, exp(ht))
 
 Wt <- GtWt$Wt
 Gt <- GtWt$Gt
@@ -154,6 +155,7 @@ for(nsi in 1:nsims){
     mu.c = tcrossprod(Beta[,bc.inds], splineInfo$Phi[match(tau[yc.inds], allTaus),]%*%d)
 
     # Observation error variance
+    Et[c] = sampleEt(Y[, yc.inds], mu.c)
 
     # Sample the AR(1) and slope parameters (and other HMM parameters, if desired)
     shmm = sampleHMMpar(dBeta, K.hmm.sv, S, gammaSlopes, psi, ht, c, useHMM, q01, q10)
@@ -205,7 +207,7 @@ for(nsi in 1:nsims){
   }
 
   # Compute Gt and Wt matrices for HMM; common trend model is a submodel (Note: this is not efficient)
-  GtWt <- computeGtWtHMM(Gt, Wt, S, gammaSlopes, psi, exp(ht))
+  GtWt <- computeGtWtHMM(S, gammaSlopes, psi, exp(ht))
 
   Wt <- GtWt$Wt
   Gt <- GtWt$Gt
@@ -243,6 +245,11 @@ Et <- colMeans(postEt)
 ht <- colMeans(postHt)
 gammaSlopes <- colMeans(postGammaSlopes)
 
+EstResults <- list(Beta = Beta,
+                   S = S, d = d, Et = Et,
+                   gammaSlopes = gammaSlopes, ht = ht, K = K, C = C, psi = psi,
+                   svMu = svMu, svPhi = svPhi, svSigma = svSigma,
+                   q10 = q10, q01 = q01)
 
 # Test Data
 

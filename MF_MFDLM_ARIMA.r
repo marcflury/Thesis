@@ -797,7 +797,10 @@ sampleHMMpar = function(dBeta, K.hmm.sv, S, gammaSlopes, psi, ht, c=1, useHMM=FA
 # psi: (C*K)-dimesional vector AR(1) coefficients
 # sigma.t2: T-dimensional vector of error variances from the Beta-level for outcome c, factor k
 #####################################################################################################
-computeGtWtHMM = function(Gt, Wt, S, gammaSlopes, psi, sigma.t2){
+computeGtWtHMM = function(S, gammaSlopes, psi, sigma.t2){
+  T <- nrow(S)
+  Wt <- array(0, c(C*K, C*K, T))
+  Gt <- array(0, c(2*C*K, 2*C*K, T))
 
   # Compute S_t*gammaSlopes*psi, and for psi with c=1 only
   S.gamma_t = S*matrix(rep(gammaSlopes, T), nrow=T, byrow=TRUE)

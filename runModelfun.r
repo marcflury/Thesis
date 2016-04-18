@@ -1,33 +1,25 @@
 
+# Required packages:
+library(fda)
+library(KFAS)
+library(MCMCpack)
+library(stochvol)
+library(truncnorm)
+library(abind)
+
+
+
+# nsims: Total number of simulations
+# burnin: Burn-in
+# K.hmm.sv: Number of factors for the common trend model
+# useHMM: Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
+
+
 runModelfun <- function(nsims, burnin, K, K.hmm.sv, useHMM){
   set.seed(1990)
-  #########################################################################################################################
 
-  # MCMC parameters:
-  nsims =  nsims		# Total number of simulations
-  burnin = burnin		# Burn-in
-
-  # FDLM parameters:
-  K = K			# Number of factors
-  K.hmm.sv = K.hmm.sv		# Number of factors for the common trend model
-  useHMM = useHMM		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
-  # Note: HMM needs additional adjustments to store the relevant parameters
-  #########################################################################################################################
-
-  # Required packages:
-  library(fda)
-  library(KFAS)
-  library(MCMCpack)
-  library(stochvol)
-  library(truncnorm)
-  library(abind)
-  #library(dlm)
-
-  # File containing functions
+    # File containing functions
   source("MF_MFDLM_ARIMA.R")
-
-  # This may improve efficiency in some cases:
-  #library(compiler);  enableJIT(3)
 
   #########################################################################################################################
 
