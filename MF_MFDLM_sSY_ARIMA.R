@@ -9,8 +9,8 @@ nsims =  7000		# Total number of simulations
 burnin = 2000		# Burn-in
 
 # FDLM parameters:
-K = 4			# Number of factors
-K.hmm.sv = 4		# Number of factors for the common trend model
+K = 3			# Number of factors
+K.hmm.sv = 3		# Number of factors for the common trend model
 useHMM = TRUE		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
 # Note: HMM needs additional adjustments to store the relevant parameters
 #########################################################################################################################
@@ -132,6 +132,13 @@ postCountAll = array(0, c(nsims, T-1, C*K))
 postCountAggAll = array(0, c(nsims, T-1, C-1)) # For outlier plot
 postSAll <-  array(0, c(nsims, dim(S)))
 
+postsvMu <- array(0, dim = c(nsims, C*K))
+postsvPhi <- array(0, dim = c(nsims, C*K))
+postsvSigma <- array(0, dim = c(nsims, C*K))
+postPsi <- array(0, dim = c(nsims, C*K))
+postq10 <- array(0, dim = c(nsims, C*K))
+postq01 <- array(0, dim = c(nsims, C*K))
+
 #########################################################################################################################
 
 # Now, run the MCMC
@@ -222,6 +229,14 @@ for(nsi in 1:nsims){
   postGammaSlopesAll[nsi,] <- gammaSlopes
   postSAll[nsi,, ] <- S
 
+  postsvMu[nsi,] <- svMu
+  postsvPhi[nsi,] <- svPhi
+  postsvSigma[nsi,] <- svSigma
+  postPsi[nsi,] <- psi
+  postq10[nsi,] <- q10
+  postq01[nsi,] <- q01
+
+
   # Check the time remaining:
   computeTimeRemaining(nsi, timer0, nsims)
 }
@@ -245,13 +260,43 @@ Et <- colMeans(postEt)
 ht <- colMeans(postHt)
 gammaSlopes <- colMeans(postGammaSlopes)
 
+
+svMu <- colMeans(postsvMu[-(1:burnin),])
+svPhi <- colMeans(postsvPhi[-(1:burnin),])
+svSigma <- colMeans(postsvSigma[-(1:burnin),])
+Psi <- colMeans(postPsi[-(1:burnin),])
+q10 <- colMeans(postq10[-(1:burnin),])
+q01 <- colMeans(postq01[-(1:burnin),])
+
 EstResults <- list(Beta = Beta,
                    S = S, d = d, Et = Et,
                    gammaSlopes = gammaSlopes, ht = ht, K = K, C = C, psi = psi,
                    svMu = svMu, svPhi = svPhi, svSigma = svSigma,
                    q10 = q10, q01 = q01)
 
-# Test Data
+EstResults3HMM <- EstResults
+save("EstResults3HMM", file = "EstResults3HMM.RObj")
+rm(EstResults)
+rm(EstResults3HMM)
+
+EstResultsFull <- list(  
+  postBetaAll = postBetaAll,
+       postDAll = postDAll,
+       postLambdaAll = postLambdaAll,
+       postEtAll = postEtAll,
+       postHtAll = postHtAll,
+       postGammaSlopesAll = postGammaSlopesAll,
+       postSAll = postSAll,
+       
+       postsvMu = postsvMu,
+       postsvPhi = postsvPhi,
+       postsvSigma = postsvSigma,
+       postPsi = postPsi,
+       postq10 = postq10,
+       postq01 = postq01)
+
+EstResultsFull3HMM <- EstResultsFull
+save("EstResultsFull3HMM", file = "EstResultsFull3HMM.RObj")
 
 # Plot the Joint loading curves:
 taugrid = seq(allTaus0[1], allTaus0[m], length.out=523)
@@ -267,3 +312,7 @@ abline(h=0, col='gray', lwd=4)
 #}
 for(k in 1:K.hmm.sv) lines(taugrid, Phit%*%d[,k], type='l', lwd=10, col=k, lty=k)
 legend('topright', paste('k =', 1:K.hmm.sv), col=1:K.hmm.sv, lty=1:K.hmm.sv, lwd=10, cex=2)
+
+
+EstResults3HMM <- EstResults
+save("EstResults3HMM", file = "EstResults3HMM.RObj")

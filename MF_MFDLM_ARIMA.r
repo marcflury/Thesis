@@ -757,7 +757,7 @@ sampleHMMpar = function(dBeta, K.hmm.sv, S, gammaSlopes, psi, ht, c=1, useHMM=FA
                                        psi[ck.inds], S[,ck.inds],
                                        q01[ck.inds], q10[ck.inds],
                                        exp(ht[, ck.inds]),
-                                         gamma.ck = gammaSlopes[ck.inds]
+                                       gamma.ck = gammaSlopes[ck.inds]
         )
 
         # Sample q01 and q10
