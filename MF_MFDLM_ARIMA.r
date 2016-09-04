@@ -543,7 +543,8 @@ sampleSV = function(resBeta.c,  ht.c, svMu.c, svPhi.c, svSigma.c, svOffset = 0){
 # gamma1, gamma2: the priors
 #####################################################################################################
 sampleEt = function(Y.c, mu.c, gamma1 = 0.001, gamma2 = 0.001){
-  1/rgamma(1, shape = (gamma1 + sum(!is.na(Y.c))/2), rate = (gamma2 +sum((Y.c - mu.c)^2, na.rm=TRUE)/2))
+  1/rgamma(1, shape = (gamma1 + sum(!is.na(Y.c))/2),
+   rate = (gamma2 +sum((Y.c - mu.c)^2, na.rm=TRUE)/2))
 }
 #####################################################################################################
 #####################################################################################################

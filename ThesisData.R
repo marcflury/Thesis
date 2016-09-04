@@ -5,8 +5,8 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(lubridate)
-wb <-  loadWorkbook("ThesisData.xlsx")
-
+wb <-  loadWorkbook("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/ThesisData.xlsx")
+source("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/t2maturity.r")
 # Reads part of the Excelfile
 # creates a single variable for every continuous contract
 myload <- function(num, Name){
@@ -78,9 +78,11 @@ NADates <- allBrent$Date[which(!(allBrent$Date %in% na.omit(allCrack)$Date)) ]
 allNaphtha <- do.call("rbind", lapply(allDates, createNap)) %>%
   t2maturity( EndDatesNap, bizdaysList)
 
-
 # NA for merge
 find_NA(merge(allBrent, allCrack, by="Date", all=TRUE))
+
+allBrent <- do.call("rbind", lapply(allDates, allBrent)) %>%
+  t2maturity( EndDatesBre, bizdaysList)
 
 # Cut sample so that year(Date) >= 2012
 rawData <- merge(allBrent, allNaphtha, by="Date") %>%
@@ -90,6 +92,6 @@ Data  <- as.matrix(rawData[,-1])
 
 colnames(Data) <- gsub("[^1234567890]","",colnames(Data))
 rownames(Data) <- as.character(rawData$Date)
-find_NA(rawData)
+# find_NA(rawData)
 
 save(Data, file="Data.RData")

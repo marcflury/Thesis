@@ -76,7 +76,7 @@ lambda = inits$lambda0
 splineInfo = inits$splineInfo
 K = inits$K
 betaInds = seq(1, C*(K+1), by=K)
-  dBeta  <- rbind(0, Beta[2:T, ]- Beta[1:(T-1), ])
+dBeta  <- rbind(0, Beta[2:T, ]- Beta[1:(T-1), ])
 # Initialize the AR(1) and HMM parameters:
 initsHMMpar = initHMM(dBeta, K.hmm.sv, useHMM)
 psi = initsHMMpar$psi
@@ -152,34 +152,34 @@ for(nsi in 1:nsims){
   lambda=samples$lambda
   dBeta  <- rbind(0, Beta[2:T, ]- Beta[1:(T-1), ])
   Theta <- samples$Theta
-
+  
   # Cycle through the outcomes:
   for(c in 1:C) {
     bc.inds = betaInds[c]:(betaInds[c+1]-1)		# Subsets: \beta_{1,t}^{(c)}, ..., \beta_{K,t}^{(c)}
     yc.inds = outcomeInds[c]:(outcomeInds[c+1]-1) 	# Subsets: Y_t^{(c)}(\tau_1), ..., Y_t^{(c)}(\tau_m)
-
+    
     # Conditional means of Y_t^{(c)}(\tau) (T x m)
     mu.c = tcrossprod(Beta[,bc.inds], splineInfo$Phi[match(tau[yc.inds], allTaus),]%*%d)
-
+    
     # Observation error variance
     Et[c] = sampleEt(Y[, yc.inds], mu.c)
-
+    
     # Sample the AR(1) and slope parameters (and other HMM parameters, if desired)
     shmm = sampleHMMpar(dBeta, K.hmm.sv, S, gammaSlopes, psi, ht, c, useHMM, q01, q10)
     gammaSlopes <- shmm$gammaSlopes
     psi         <- shmm$psi
-
+    
     if(useHMM){
       S           <- shmm$S
       q01         <- shmm$q01
       q10         <- shmm$q10
     }
-
+    
     # Sample the stochastic volatility parameters:
     if(c > 1){
       wt <- dBeta[, bc.inds] - S[,bc.inds] * dBeta[,1:K] *
         matrix(rep(gammaSlopes[bc.inds], T), nrow=T, byrow=TRUE)
-
+      
       resBeta.c = wt[-1,] -
         matrix(rep(psi[bc.inds], T-1), nrow=T-1, byrow=TRUE) *
         wt[-T,]
@@ -188,38 +188,38 @@ for(nsi in 1:nsims){
         matrix(rep(psi[bc.inds], T-1), nrow=T-1, byrow=TRUE) *
         dBeta[-T, bc.inds]
     }
-
-  samples = sampleSV(resBeta.c,  ht[, bc.inds], svMu[bc.inds], svPhi[bc.inds], svSigma[bc.inds], svOffset=10^-6)
-  ht[, bc.inds] <- samples$ht.c
-  svMu[bc.inds] <- samples$svMu.c
-  svPhi[bc.inds] <- samples$svPhi.c
-  svSigma[bc.inds] <- samples$svSigma.c
-  Wt[bc.inds, bc.inds,] <- samples$Wt.c
-
-
-
-
-
-
+    
+    samples = sampleSV(resBeta.c,  ht[, bc.inds], svMu[bc.inds], svPhi[bc.inds], svSigma[bc.inds], svOffset=10^-6)
+    ht[, bc.inds] <- samples$ht.c
+    svMu[bc.inds] <- samples$svMu.c
+    svPhi[bc.inds] <- samples$svPhi.c
+    svSigma[bc.inds] <- samples$svSigma.c
+    Wt[bc.inds, bc.inds,] <- samples$Wt.c
+    
+    
+    
+    
+    
+    
     if(c > 1){
       # Standardized residual diagnostic/outlier plot:
       sResid2 = resBeta.c^2/exp(ht[-1, bc.inds])
       postCountAll[nsi,,bc.inds] = sResid2 > qchisq(0.95, 1)
       postCountAggAll[nsi,, c-1] = rowSums(sResid2[,1:K.hmm.sv]) > qchisq(0.95, K.hmm.sv)
     }
-
+    
     # Compute the (observation-level) deviance, summing over c=1,...,C
     devAll[nsi] = devAll[nsi] + 1/Et[c] * sum((Y[, yc.inds]-mu.c)^2,na.rm=TRUE) +
       sum(!is.na(Y[, yc.inds]))* log(2 * pi * Et[c])
   }
-
+  
   # Compute Gt and Wt matrices for HMM; common trend model is a submodel (Note: this is not efficient)
   GtWt <- computeGtWtHMM(S, gammaSlopes, psi, exp(ht))
-
+  
   Wt <- GtWt$Wt
   Gt <- GtWt$Gt
-
-
+  
+  
   # Store the samples, respecting the burn-in and thinning
   postBetaAll[nsi,,] <- Beta
   postDAll[nsi,,] <- d
@@ -228,15 +228,15 @@ for(nsi in 1:nsims){
   postHtAll[nsi,,] <- ht
   postGammaSlopesAll[nsi,] <- gammaSlopes
   postSAll[nsi,, ] <- S
-
+  
   postsvMu[nsi,] <- svMu
   postsvPhi[nsi,] <- svPhi
   postsvSigma[nsi,] <- svSigma
   postPsi[nsi,] <- psi
   postq10[nsi,] <- q10
   postq01[nsi,] <- q01
-
-
+  
+  
   # Check the time remaining:
   computeTimeRemaining(nsi, timer0, nsims)
 }
@@ -279,21 +279,20 @@ save("EstResults3HMM", file = "EstResults3HMM.RObj")
 rm(EstResults)
 rm(EstResults3HMM)
 
-EstResultsFull <- list(  
-  postBetaAll = postBetaAll,
-       postDAll = postDAll,
-       postLambdaAll = postLambdaAll,
-       postEtAll = postEtAll,
-       postHtAll = postHtAll,
-       postGammaSlopesAll = postGammaSlopesAll,
-       postSAll = postSAll,
-       
-       postsvMu = postsvMu,
-       postsvPhi = postsvPhi,
-       postsvSigma = postsvSigma,
-       postPsi = postPsi,
-       postq10 = postq10,
-       postq01 = postq01)
+EstResultsFull <- list( postDAll = postDAll,  
+                        postBetaAll = postBetaAll,
+                        postDAll = postDAll,
+                        postLambdaAll = postLambdaAll,
+                        postEtAll = postEtAll,
+                        postHtAll = postHtAll,
+                        postGammaSlopesAll = postGammaSlopesAll,
+                        postSAll = postSAll,
+                        postsvMu = postsvMu,
+                        postsvPhi = postsvPhi,
+                        postsvSigma = postsvSigma,
+                        postPsi = postPsi,
+                        postq10 = postq10,
+                        postq01 = postq01)
 
 EstResultsFull3HMM <- EstResultsFull
 save("EstResultsFull3HMM", file = "EstResultsFull3HMM.RObj")
