@@ -18,8 +18,11 @@ myload <- function(num, Name){
   
   fullName <- paste(Name, num, sep="")
   colnames(rawdata) <- c("Date", fullName)
+  rawdata <- mutate(rawdata,
+         Date = as.Date(as.character(Date), format = "%d.%m.%Y"))
   assign(fullName, rawdata, envir = .GlobalEnv)
   fullName
+
 }
 
 lapply(1:24,myload,Name="Brent") # Run on Brent sheet
@@ -44,20 +47,6 @@ data.frame(Date=allCrack$Date,
   ggplot(aes(Date, Count))+geom_line()
 
 
-# Create matrix indicating which columns have NAs
-find_NA <- function(x){
-  data.frame(Date=x$Date,
-             apply(x,c(1,2),is.na)) %>%
-    gather(Column, isNA, -Date) %>%
-    dplyr::filter(isNA==TRUE) %>%
-    ggplot(aes(Date, Column, col=isNA))+geom_point()+
-    scale_colour_manual(values=c("orchid"))
-}
-# Plots depicting at which date and tenor the NAs occur
-find_NA(allCrack)
-
-# find_NA(allBrent) breaks as only th last day has NA
-
 # Function that adds Brent and Crack for specific datestamp
 # makes sure that the price for the same dates are added
 createNap <- function(datestamp){
@@ -78,15 +67,12 @@ NADates <- allBrent$Date[which(!(allBrent$Date %in% na.omit(allCrack)$Date)) ]
 allNaphtha <- do.call("rbind", lapply(allDates, createNap)) %>%
   t2maturity( EndDatesNap, bizdaysList)
 
-# NA for merge
-find_NA(merge(allBrent, allCrack, by="Date", all=TRUE))
+allBrent2 <- dplyr::filter(allBrent, Date %in% allDates) %>%
+  t2maturity( EndDatesBrent, bizdaysList)
 
-allBrent <- do.call("rbind", lapply(allDates, allBrent)) %>%
-  t2maturity( EndDatesBre, bizdaysList)
-
-# Cut sample so that year(Date) >= 2012
-rawData <- merge(allBrent, allNaphtha, by="Date") %>%
-  dplyr::filter(year(Date) >= 2012)
+# Cut sample so that year(Date) >= 2010
+rawData <- merge(allBrent2, allNaphtha, by="Date") %>%
+  dplyr::filter(year(Date) >= 2010)
 
 Data  <- as.matrix(rawData[,-1])
 

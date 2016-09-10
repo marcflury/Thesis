@@ -4,9 +4,9 @@ tS <- seq(timeDate("2010-01-01"),
           by="day")
 
 # lookup matrix
-bizdays <- tS[isBizday(tS, holidayLONDON())]
+bizdays <- tS[isBizday(tS, holidays =holidayNYSE())]
 bizdaysList <- matrix(1:length(bizdays),ncol=1)
-rownames(bizdaysList) <- as.character(bizdays)
+rownames(bizdaysList) <- format(bizdays)
 
 ############ FC and EndDate matrix
 FCcodes <- c("F", "G", "H", "J", "K", "M", "N",	"Q", "U",	"V", "X",	"Z")
@@ -21,15 +21,15 @@ EndDatesNap <- transform(bizdaysdf,
   group_by(Year, Month) %>%
   dplyr::summarise(EndDate=last(Date)) %>%
   dplyr::mutate(FCnum=Year + (Month - 1)/12,
-                FC1= FCnum2FC(FCnum)) %>%
-  dplyr::mutate(FC=paste(FCcodes[Month], Year, sep="")) %>%
+                FC= FCnum2FC(FCnum)) %>%
   ungroup()
 
 
 ####### Load End Dates ############################
 EndDatesBrent <- read.csv("ICE_Brent_Expiry_Calendar.csv", sep=",", 
                           stringsAsFactors = FALSE) %>%
-  mutate(EndDate = as.Date(EndDate))
+  mutate(EndDate = as.Date(EndDate)) %>%
+  dplyr::filter(year(EndDate)>=2010)
 
 
 
