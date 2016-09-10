@@ -34,9 +34,10 @@ source("MF_MFDLM_ARIMA.R")
 # Load the data and store key variables:
 load("Data.RData")
 
-Data["2015-09-04",525:1047] <- NA # 25% percent change in one day -> outlier
+Data["2015-09-04",524:1046] <- NA # 25% percent change in one day -> outlier
 
-Y <- Data[rownames(Data)[1:756], ]
+# Take Data until end of 2014 (75% of the Data)
+Y <- Data[1:1260, ]
 
 
 C = 2							# Number of outcomes
