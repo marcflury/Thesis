@@ -30,19 +30,24 @@ t2maturity <- function(x, EndDatesdf, bizdaysL){
 # Calculates the for a given time to maturity and end dates df
 # Matrix of type dates x Tenors
 # bizdaysList list with all the business days
-maturity2tenor <- function(x, EndDatesdf, bizdaysList){
-  
+maturity2tenor <- function(x, rowDates, EndDatesdf, bizdaysList){
   df <- 
-    data.frame( Date = as.Date(rownames(x)), x) %>%
+    data.frame( Date = as.Date(rowDates), x) %>%
     gather(t2m, Value, -Date) %>% 
-    mutate(t2m = as.numeric(gsub("X","", as.character(t2m))))  %>%
+    mutate(t2m = as.numeric(gsub("X","", as.character(t2m)))-1)  %>%
     dplyr::mutate(expiryDate = as.Date(rownames(
       bizdaysList)[bizdaysList[format(Date), ] + t2m])) %>% 
-    inner_join(EndDatesdf[,c("FCnum","EndDate")], by = c("expiryDate" = "EndDate")) %>%
+    dplyr::filter(expiryDate %in% EndDatesdf$EndDate) %>%
     group_by(Date) %>%
-    arrange(FCnum) %>%
-    mutate(Tenor = paste("M", 1:n(), sep="")) 
+    arrange(expiryDate) %>%
+    mutate(Tenor = 1:n()) %>%
+    ungroup() %>%
+    dplyr::select(Date, Value, Tenor) %>%
+    tidyr::spread(Tenor, Value)
+
   
-  return(tidyr::spread(df[,c("Date","Value", "Tenor")], Tenor, Value)) 
+  mat <- as.matrix(df[,-1])
+  rownames(mat) <- format(df$Date)
+  return(mat) 
 } 
 

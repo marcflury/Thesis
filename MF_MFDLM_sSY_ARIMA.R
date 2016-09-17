@@ -9,9 +9,9 @@ nsims =  7000		# Total number of simulations
 burnin = 2000		# Burn-in
 
 # FDLM parameters:
-K = 3			# Number of factors
-K.hmm.sv = 3		# Number of factors for the common trend model
-useHMM = TRUE		# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
+K = 4			# Number of factors
+K.hmm.sv = 4		# Number of factors for the common trend model
+useHMM = 	TRUE	# Hidden Markov model (HMM), or common trend (CT) model? (CT in the paper)
 # Note: HMM needs additional adjustments to store the relevant parameters
 #########################################################################################################################
 
@@ -198,10 +198,6 @@ for(nsi in 1:nsims){
     Wt[bc.inds, bc.inds,] <- samples$Wt.c
     
     
-    
-    
-    
-    
     if(c > 1){
       # Standardized residual diagnostic/outlier plot:
       sResid2 = resBeta.c^2/exp(ht[-1, bc.inds])
@@ -275,10 +271,10 @@ EstResults <- list(Beta = Beta,
                    svMu = svMu, svPhi = svPhi, svSigma = svSigma,
                    q10 = q10, q01 = q01)
 
-EstResults3HMM <- EstResults
-save("EstResults3HMM", file = "EstResults3HMM.RObj")
+EstResults4HMM <- EstResults
+save("EstResults4HMM", file = "EstResults4HMM.RObj")
 rm(EstResults)
-rm(EstResults3HMM)
+rm(EstResults4HMM)
 
 EstResultsFull <- list( postDAll = postDAll,  
                         postBetaAll = postBetaAll,
@@ -295,8 +291,8 @@ EstResultsFull <- list( postDAll = postDAll,
                         postq10 = postq10,
                         postq01 = postq01)
 
-EstResultsFull3HMM <- EstResultsFull
-save("EstResultsFull3HMM", file = "EstResultsFull3HMM.RObj")
+EstResultsFull4HMM <- EstResultsFull
+save("EstResultsFull4HMM", file = "EstResultsFull4HMM.RObj")
 
 # Plot the Joint loading curves:
 taugrid = seq(allTaus0[1], allTaus0[m], length.out=523)
@@ -312,7 +308,3 @@ abline(h=0, col='gray', lwd=4)
 #}
 for(k in 1:K.hmm.sv) lines(taugrid, Phit%*%d[,k], type='l', lwd=10, col=k, lty=k)
 legend('topright', paste('k =', 1:K.hmm.sv), col=1:K.hmm.sv, lty=1:K.hmm.sv, lwd=10, cex=2)
-
-
-EstResults3HMM <- EstResults
-save("EstResults3HMM", file = "EstResults3HMM.RObj")
