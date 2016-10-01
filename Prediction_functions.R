@@ -442,7 +442,7 @@ fullPrediction <- function(i){
     )[1:(NROW(Y)-1-Ps), ,]
     rowDatesYp <- rowDatesY[(1+1+Ps):NROW(Y)]
     
-    name <- paste("results44T", Ps, i, sep="_")
+    name <- paste("results33T", Ps, i, sep="_")
     tmpYp <- array(0,dim=c(NROW(Yp),48, numPreds))
     for(numPred in 1: numPreds){
       tmpYp[, , numPred] <- cbind(maturity2tenor(Yp[,1:523, numPred],
@@ -459,9 +459,9 @@ fullPrediction <- function(i){
     assign(name, res)
     save(list = name, file = paste(name, ".Robj", sep=""))
   }
-  upname <- paste("updates44T", i, sep="_")
+  upname <- paste("updates33T", i, sep="_")
   assign(upname, updates)
-  save(list = upname, file = paste(paste("updates44T", i, sep="_"), ".Robj", sep=""))
+  save(list = upname, file = paste(paste("updates33T", i, sep="_"), ".Robj", sep=""))
 }
 
 

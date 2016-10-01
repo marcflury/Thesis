@@ -14,6 +14,7 @@ library(xts)
 
 set.seed(42)
 load("EstResultsFull4HMM.RObj")
+load("EstResults4HMM.RObj")
 load("Data.RData")
 source("MF_MFDLM_ARIMA.R")
 source("C:/Users/Marc/SkyDrive/Git/Thesis/Prediction_functions.R")
@@ -79,13 +80,13 @@ if(TRUE){
   cl <- makeCluster(num_cores)
   
   clusterExport(cl, varlist=ls())
+  t0 <- Sys.time()
 
-  parLapply(cl, 1:updateNum, fullPrediction)
+  parLapply(cl, 1:100, fullPrediction)
   t1 <- Sys.time()
   t1 - t0
   stopCluster(cl)
   # Initiate cluster
   
 }
-
-
+save("postIs", file="postIs44T.Robj")

@@ -49,9 +49,16 @@ data.frame(Date=allCrack$Date,
 
 # Function that adds Brent and Crack for specific datestamp
 # makes sure that the price for the same dates are added
-createNap <- function(datestamp){
-  napraw <- allBrent[which(allBrent$Date==datestamp), paste("Brent",1:24,sep="")] +
-    allCrack[which(allCrack$Date==datestamp), paste("Crack",1:24,sep="")]
+createNap <- function(datestamp, EndDates){
+  if(datestamp %in% EndDates){
+    napraw <- allBrent[which(allBrent$Date==datestamp), paste("Brent", 2:24,sep="")] +
+      allCrack[which(allCrack$Date==datestamp), paste("Crack",1:23,sep="")]
+    napraw <- cbind(napraw, NA)
+  } else {
+    napraw <- allBrent[which(allBrent$Date==datestamp), paste("Brent",1:24,sep="")] +
+      allCrack[which(allCrack$Date==datestamp), paste("Crack",1:24,sep="")]
+  }
+
   ret <- data.frame(datestamp, napraw)
   colnames(ret) <- c("Date", paste("Naphtha", 1:24, sep=""))
   return(ret)
@@ -64,7 +71,7 @@ allDates <- allBrent$Date[which(allBrent$Date %in% allCrack$Date) ]
 NADates <- allBrent$Date[which(!(allBrent$Date %in% na.omit(allCrack)$Date)) ]
 
 # Create the Naphtha data.frame 
-allNaphtha <- do.call("rbind", lapply(allDates, createNap)) %>%
+allNaphtha <- do.call("rbind", lapply(allDates, createNap, EndDates = EndDatesBrent$EndDate)) %>%
   t2maturity( EndDatesNap, bizdaysList)
 
 allBrent2 <- dplyr::filter(allBrent, Date %in% allDates) %>%
