@@ -17,7 +17,7 @@ load("EstResultsFull4HMM.RObj")
 load("EstResults4HMM.RObj")
 load("Data.RData")
 source("MF_MFDLM_ARIMA.R")
-source("C:/Users/Marc/SkyDrive/Git/Thesis/Prediction_functions.R")
+source("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/Prediction_functions.R")
 source("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/t2maturity.r")
 K <- 4
 C <- 2
