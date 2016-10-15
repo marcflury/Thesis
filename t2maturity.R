@@ -4,11 +4,13 @@ library(tidyr)
 library(lubridate)
 library(xts)
 
+# Functions that transforms a numeric value of a futures to a name for that futures
 FCnum2FC <- function(x){
   return(paste(FCcodes[(x - floor(x))*12 +1], floor(x)-2000, sep=""))
 }
 
-source("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/helpingMatrices.R")
+# Load data.frames for the expiry dates that are used further down
+source("helpingMatrices.R")
 
 # Calculates the time to maturity for a given commodity
 # Matrix of type dates x Tenors
@@ -27,14 +29,15 @@ t2maturity <- function(x, EndDatesdf, bizdaysL){
   #return(df$EndDate[which(!(format(df$EndDate) %in% rownames(bizdaysL))) ]) 
 }
 
-# Calculates the for a given time to maturity and end dates df
+# Calculates the for a given time to maturity and end dates data.frame the tenor (e.g. M1)
 # Matrix of type dates x Tenors
-# bizdaysList list with all the business days
-maturity2tenor <- function(x, rowDates, EndDatesdf, bizdaysList){
+# bizdaysList list with all the business dayss
+# startT2m if the first time to maturity is not 1 change to 0
+maturity2tenor <- function(x, rowDates, EndDatesdf, bizdaysList, startT2m = 1){
   df <- 
     data.frame( Date = as.Date(rowDates), x) %>%
     gather(t2m, Value, -Date) %>% 
-    mutate(t2m = as.numeric(gsub("X","", as.character(t2m)))-1)  %>%
+    mutate(t2m = as.numeric(gsub("X","", as.character(t2m)))- startT2m)  %>%
     dplyr::mutate(expiryDate = as.Date(rownames(
       bizdaysList)[bizdaysList[format(Date), ] + t2m])) %>% 
     dplyr::filter(expiryDate %in% EndDatesdf$EndDate) %>%

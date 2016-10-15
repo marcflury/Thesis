@@ -5,8 +5,15 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(lubridate)
-wb <-  loadWorkbook("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/ThesisData.xlsx")
-source("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/t2maturity.r")
+
+setwd("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/")
+
+# Loads functions to transform tenors into time to maturity 
+source("t2maturity.r")
+
+# Loads the Excel
+wb <-  loadWorkbook("ThesisData.xlsx")
+
 # Reads part of the Excelfile
 # creates a single variable for every continuous contract
 myload <- function(num, Name){
@@ -83,8 +90,8 @@ rawData <- merge(allBrent2, allNaphtha, by="Date") %>%
 
 Data  <- as.matrix(rawData[,-1])
 
+# Remoce non-numeric characters from colnames
 colnames(Data) <- gsub("[^1234567890]","",colnames(Data))
 rownames(Data) <- as.character(rawData$Date)
-# find_NA(rawData)
 
 save(Data, file="Data.RData")

@@ -12,13 +12,14 @@ library(tidyr)
 library(lubridate)
 library(xts)
 
+setwd("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/")
 set.seed(42)
 load("EstResultsFull4HMM.RObj")
 load("EstResults4HMM.RObj")
 load("Data.RData")
 source("MF_MFDLM_ARIMA.R")
-source("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/Prediction_functions.R")
-source("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/t2maturity.r")
+source("Prediction_functions.R")
+source("t2maturity.r")
 K <- 4
 C <- 2
 postBetaAll <- EstResultsFull4HMM$postBetaAll
@@ -75,6 +76,7 @@ postIs <- burnin + floor(runif(updateNum)*(nsims-burnin))
 num_cores <- detectCores() - 1
 
 
+print(Sys.time())
 if(TRUE){
   
   cl <- makeCluster(num_cores)
@@ -82,11 +84,10 @@ if(TRUE){
   clusterExport(cl, varlist=ls())
   t0 <- Sys.time()
 
-  parLapply(cl, 1:100, fullPrediction)
+  parLapply(cl, 1:100, allPredictions, resPath = "D:/R/Results/44T/")
   t1 <- Sys.time()
   t1 - t0
   stopCluster(cl)
-  # Initiate cluster
   
 }
 save("postIs", file="postIs44T.Robj")
