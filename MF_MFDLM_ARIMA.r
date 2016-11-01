@@ -949,7 +949,8 @@ sampleHMMstates = function(dB.ck, dB.1k, psi.ck, St, q01.ck, q10.ck, sigma.t2, g
     St[i] = 0
     resB1 =  dB.1k[i:(i-1)] * St[i:(i-1)]* gamma.ck
     resB1 = resB1[1] - psi.ck*resB1[2]
-    ldist0 = log(computeTransitProbs(St[i-1], 0, q01.ck, q10.ck))-.5*(resBc[i]-resB1)^2/sigma.t2[i]
+    ldist0 = log(computeTransitProbs(St[i-1], 0, q01.ck, q10.ck))-
+      .5*(resBc[i]-resB1)^2/sigma.t2[i]
 
     # Compare
     if((ldist0 - ldist1) < log(1/runif(1)-1)) St[i] = 1

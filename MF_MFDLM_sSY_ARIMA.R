@@ -64,12 +64,12 @@ betaInds = seq(1, C*(K+1), by=K)								# For outcome-specific Beta, use  Beta[,
 ####################################
 
 # Interpolate the data with using cubic splines
-Y <- do.call("cbind",lapply(1:C,splineinterpol))
+Ybar <- do.call("cbind",lapply(1:C,splineinterpol))
 T = nrow(Y)
 #########################################################################################################################
 
 # Initialize the main parameters:
-inits = initParams(Y, tau, K=K, useAllTaus=TRUE)
+inits = initParams(Ybar, tau, K=K, useAllTaus=TRUE)
 Beta = inits$Beta0
 d = inits$d0
 Et = inits$Et0
@@ -237,62 +237,8 @@ for(nsi in 1:nsims){
   # Check the time remaining:
   computeTimeRemaining(nsi, timer0, nsims)
 }
+
 print(paste('Total time: ', round((proc.time()[3] - timer0)/60), 'minutes'))
-
-#########################################################################################################################
-# Discard burn-in in duplicate arrays (for some variables)
-postBeta <- postBetaAll[-(1:burnin),,]
-postD <- postDAll[-(1:burnin),,]
-postEt <- postEtAll[-(1:burnin),]
-postHt <- postHtAll[-(1:burnin),,]
-postGammaSlopes <- postGammaSlopesAll[-(1:burnin),]
-dev <- devAll[-(1:burnin)]
-postCount <- postCountAll[-(1:burnin),,]
-postCountAgg <- postCountAggAll[-(1:burnin),,]
-S <- colMeans(postSAll[-(1:burnin),,])
-# Fix important parameters at their posterior means:
-Beta <- colMeans(postBeta)
-d <- colMeans(postD)
-Et <- colMeans(postEt)
-ht <- colMeans(postHt)
-gammaSlopes <- colMeans(postGammaSlopes)
-
-
-svMu <- colMeans(postsvMu[-(1:burnin),])
-svPhi <- colMeans(postsvPhi[-(1:burnin),])
-svSigma <- colMeans(postsvSigma[-(1:burnin),])
-Psi <- colMeans(postPsi[-(1:burnin),])
-q10 <- colMeans(postq10[-(1:burnin),])
-q01 <- colMeans(postq01[-(1:burnin),])
-
-EstResults <- list(Beta = Beta,
-                   S = S, d = d, Et = Et,
-                   gammaSlopes = gammaSlopes, ht = ht, K = K, C = C, psi = psi,
-                   svMu = svMu, svPhi = svPhi, svSigma = svSigma,
-                   q10 = q10, q01 = q01)
-
-EstResults4HMM <- EstResults
-save("EstResults4HMM", file = "EstResults4HMM.RObj")
-rm(EstResults)
-rm(EstResults4HMM)
-
-EstResultsFull <- list( postDAll = postDAll,  
-                        postBetaAll = postBetaAll,
-                        postDAll = postDAll,
-                        postLambdaAll = postLambdaAll,
-                        postEtAll = postEtAll,
-                        postHtAll = postHtAll,
-                        postGammaSlopesAll = postGammaSlopesAll,
-                        postSAll = postSAll,
-                        postsvMu = postsvMu,
-                        postsvPhi = postsvPhi,
-                        postsvSigma = postsvSigma,
-                        postPsi = postPsi,
-                        postq10 = postq10,
-                        postq01 = postq01)
-
-EstResultsFull4HMM <- EstResultsFull
-save("EstResultsFull4HMM", file = "EstResultsFull4HMM.RObj")
 
 # Plot the Joint loading curves:
 taugrid = seq(allTaus0[1], allTaus0[m], length.out=523)
@@ -300,11 +246,68 @@ Phit = splineInfo$basisPhi(seq(splineInfo$a, splineInfo$b, length.out=length(tau
 par(mfrow=c(1,1), mai=c(1.1,1,1,.1))
 plot(taugrid, Phit%*%d[,1], type='l', lwd=10, ylim=1.1*range(Phit%*%d[,1:K.hmm.sv]), xlab=expression(tau), ylab=expression(f[k](tau)), main='Common Factor Loading Curves', cex.axis=1.5, cex.lab=2, cex.main=2)
 abline(h=0, col='gray', lwd=4)
-#for(k in 1:K.hmm.sv){
-#dci = HPDinterval(as.mcmc(postD[,,k]))
-#polygon(c(taugrid, rev(taugrid)), c(Phit%*%dci[,2], rev(Phit%*%dci[,1])), col='grey', border=NA)
-#lines(taugrid, Phit%*%dci[,2], col=k, lty=k) # border for HPD intervals
-#lines(taugrid, Phit%*%dci[,1], col=k, lty=k)
-#}
 for(k in 1:K.hmm.sv) lines(taugrid, Phit%*%d[,k], type='l', lwd=10, col=k, lty=k)
 legend('topright', paste('k =', 1:K.hmm.sv), col=1:K.hmm.sv, lty=1:K.hmm.sv, lwd=10, cex=2)
+
+if(FALSE){
+  
+  #########################################################################################################################
+  # Discard burn-in in duplicate arrays (for some variables)
+  postBeta <- postBetaAll[-(1:burnin),,]
+  postD <- postDAll[-(1:burnin),,]
+  postEt <- postEtAll[-(1:burnin),]
+  postHt <- postHtAll[-(1:burnin),,]
+  postGammaSlopes <- postGammaSlopesAll[-(1:burnin),]
+  dev <- devAll[-(1:burnin)]
+  postCount <- postCountAll[-(1:burnin),,]
+  postCountAgg <- postCountAggAll[-(1:burnin),,]
+  S <- colMeans(postSAll[-(1:burnin),,])
+  # Fix important parameters at their posterior means:
+  Beta <- colMeans(postBeta)
+  d <- colMeans(postD)
+  Et <- colMeans(postEt)
+  ht <- colMeans(postHt)
+  gammaSlopes <- colMeans(postGammaSlopes)
+  
+  
+  svMu <- colMeans(postsvMu[-(1:burnin),])
+  svPhi <- colMeans(postsvPhi[-(1:burnin),])
+  svSigma <- colMeans(postsvSigma[-(1:burnin),])
+  Psi <- colMeans(postPsi[-(1:burnin),])
+  q10 <- colMeans(postq10[-(1:burnin),])
+  q01 <- colMeans(postq01[-(1:burnin),])
+  
+  ###########################################################################################################################
+  ############################################### Save the results ##########################################################
+  ###########################################################################################################################
+  EstResults <- list(Beta = Beta,
+                     S = S, d = d, Et = Et,
+                     gammaSlopes = gammaSlopes, ht = ht, K = K, C = C, psi = psi,
+                     svMu = svMu, svPhi = svPhi, svSigma = svSigma,
+                     q10 = q10, q01 = q01)
+  
+  EstResults4HMM <- EstResults
+  save("EstResults4HMM", file = "EstResults4HMM.RObj")
+  rm(EstResults)
+  rm(EstResults4HMM)
+  
+  EstResultsFull <- list( postDAll = postDAll,  
+                          postBetaAll = postBetaAll,
+                          postDAll = postDAll,
+                          postLambdaAll = postLambdaAll,
+                          postEtAll = postEtAll,
+                          postHtAll = postHtAll,
+                          postGammaSlopesAll = postGammaSlopesAll,
+                          postSAll = postSAll,
+                          postsvMu = postsvMu,
+                          postsvPhi = postsvPhi,
+                          postsvSigma = postsvSigma,
+                          postPsi = postPsi,
+                          postq10 = postq10,
+                          postq01 = postq01)
+  
+  EstResultsFull4HMM <- EstResultsFull
+  save("EstResultsFull4HMM", file = "EstResultsFull4HMM.RObj")
+  
+  
+}

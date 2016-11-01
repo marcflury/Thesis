@@ -38,8 +38,8 @@ predictBetas <- function(k, C, wT, hT, psi, gammaSlopes,
         
         wt.p[i, ck.inds] <- psi[ck.inds] * wT[ck.inds] +
           exp(hT[ck.inds]/2) * rnorm(1)
-        Beta.p[i, ck.inds] <-   gammaSlopes[ ck.inds] * st.p[i,ck.inds] * wt.p[i,k] +
-          wt.p[i,ck.inds]
+        Beta.p[i, ck.inds] <-   gammaSlopes[ ck.inds] * st.p[i, ck.inds] * wt.p[i,k] +
+          wt.p[i, ck.inds]
       } else {
         ht.p[i, ck.inds] <- rnorm(1, mean = svMu[ck.inds] + svPhi[ck.inds] *
                                     (ht.p[i-1, ck.inds] - svMu[ck.inds]), sd = svSigma[ck.inds])
@@ -47,8 +47,8 @@ predictBetas <- function(k, C, wT, hT, psi, gammaSlopes,
         wt.p[i, ck.inds] <- psi[ck.inds] * wt.p[i-1, ck.inds] +
           exp(ht.p[i, ck.inds]/2) * rnorm(1)
         
-        Beta.p[i, ck.inds] <- gammaSlopes[ ck.inds] * st.p[i,ck.inds] * wt.p[i,k] +
-          wt.p[i,ck.inds]
+        Beta.p[i, ck.inds] <- gammaSlopes[ck.inds] * st.p[i, ck.inds] * wt.p[i, k] +
+          wt.p[i, ck.inds]
       }
     }
   }
@@ -77,17 +77,10 @@ predictStatefn <- function(ind.ck, Ps, q10, q01, sT){
   return(st.p.ck)
 }
 
-cumCurve <- function(Beta, c, d, splineInfo){
-  Phit <- splineInfo$basisPhi(seq(splineInfo$a, splineInfo$b,
-                                  length.out=outcomeInds[c+1]-outcomeInds[c]))
-  
-  return(colSums(Beta %*% t(Phit%*%d)))
-}
-
 # Predicts the states and betas for one date t
 # Index is the row index (date) from which to predict forward
 predictAll <- function(Index, Beta, ht, K, C, psi, gammaSlopes,
-                      svMu, svPhi, svSigma, Ps, S, q10, q01){
+                       svMu, svPhi, svSigma, Ps, S, q10, q01){
   
   wT <- diff(Beta)[Index-1, ]
   
@@ -186,15 +179,18 @@ updateS1 <- function(ind.ck, K, dBeta, psi, St, q01, q10, sigma.t2,
   # Residual contribution from Beta_1k in Beta_ck equation
   resB1 = dBeta[n:(n-1), (ind.ck-1) %% K + 1]*St[n:(n-1), ind.ck] * gammaSlopes[ind.ck]
   resB1 = resB1[1] - psi[ind.ck] * resB1[2]
-  ldist1 =  log(computeTransitProbs(St[n-1, ind.ck], 1, q01[ind.ck], q10[ind.ck]))-
+  ldist1 =  log(computeTransitProbs(St[n-1, ind.ck], 1,
+                                    q01[ind.ck], q10[ind.ck]))-
     .5*(resBc[n]-resB1)^2/sigma.t2[n, ind.ck]
   
-  # Next, consider state = 0
-  St[n, ind.ck] = 0
+  # Next, consider state = 0 
+  St[n, ind.ck] = 0 
   resB1 =  dBeta[n:(n-1), (ind.ck-1) %% K + 1] * St[n:(n-1), ind.ck] * gammaSlopes[ind.ck]
   resB1 = resB1[1] - psi[ind.ck]*resB1[2]
-  ldist0 = log(computeTransitProbs(St[n-1, ind.ck], 0, q01 [ind.ck], q10 [ind.ck])) -
-    .5*(resBc[n]-resB1)^2/sigma.t2[n, ind.ck]
+  ldist0 = log(computeTransitProbs(St[n-1, ind.ck], 0,
+                                   q01 [ind.ck],
+                                   q10 [ind.ck]))-
+    .5*(resBc[n]-resB1)^2/ sigma.t2[n, ind.ck]
   
   # Compare
   if((ldist0 - ldist1) < log(1/runif(1)-1)){
