@@ -395,7 +395,7 @@ fullPrediction <- function(i){
                         S = postSAll[postI,,], q10 = postq10[postI,],
                         q01 = postq01[postI,],
                         Y.full = Y, Et = postEtAll[postI, ], d=d)
-  for(Ps in c(1,22)){
+  for(Ps in c(1, 5, 22)){
     print(Ps)
     numPreds <- 10
     preds <- npred(numPreds, Beta=updates$Beta_, ht=updates$ht_, K=K, C=C,
@@ -411,7 +411,7 @@ fullPrediction <- function(i){
     )[1:(NROW(Y)-1-Ps), ,]
     rowDatesYp <- rowDatesY[(1+1+Ps):NROW(Y)]
     
-    name <- paste("results44T", Ps, i, sep="_")
+    name <- paste("results33T", Ps, i, sep="_")
     tmpYp <- array(0,dim=c(NROW(Yp),48, numPreds))
     for(numPred in 1: numPreds){
       tmpYp[, , numPred] <- cbind(maturity2tenor(Yp[,1:523, numPred],
@@ -428,9 +428,9 @@ fullPrediction <- function(i){
     assign(name, res)
     save(list = name, file = paste(name, ".Robj", sep=""))
   }
-  upname <- paste("updates44T", i, sep="_")
+  upname <- paste("updates33T", i, sep="_")
   assign(upname, updates)
-  save(list = upname, file = paste(paste("updates44T", i, sep="_"), ".Robj", sep=""))
+  save(list = upname, file = paste(paste("updates33T", i, sep="_"), ".Robj", sep=""))
 }
 
 # allPredictions is used for prediction if the updates are already available
@@ -453,8 +453,8 @@ allPredictions <- function(i, resPath, numPreds= 10, PsVec = C(1, 5, 22)){
   
   postI <- postIs[i]
   d <- postDAll[postI,,]
-  updates <- load(paste(resPath, paste("updates44T", i, sep="_"), ".Robj", sep=""))
-  assign("updates", get(paste("updates44T", i, sep="_")))
+  updates <- load(paste(resPath, paste("updates33T", i, sep="_"), ".Robj", sep=""))
+  assign("updates", get(paste("updates33T", i, sep="_")))
   
   for(Ps in PsVec){
     print(Ps)
@@ -471,7 +471,7 @@ allPredictions <- function(i, resPath, numPreds= 10, PsVec = C(1, 5, 22)){
     )[1:(NROW(Y)-1-Ps), ,]
     rowDatesYp <- rowDatesY[(1+1+Ps):NROW(Y)]
     
-    name <- paste("results44T", Ps, i, sep="_")
+    name <- paste("results33T", Ps, i, sep="_")
     tmpYp <- array(0,dim=c(NROW(Yp),48, numPreds))
     for(numPred in 1: numPreds){
       tmpYp[, , numPred] <- cbind(maturity2tenor(Yp[,1:523, numPred],
@@ -488,9 +488,9 @@ allPredictions <- function(i, resPath, numPreds= 10, PsVec = C(1, 5, 22)){
     assign(name, res)
     save(list = name, file = paste(name, ".Robj", sep=""))
   }
-  upname <- paste("updates44T", i, sep="_")
+  upname <- paste("updates33T", i, sep="_")
   assign(upname, updates)
-  save(list = upname, file = paste(paste("updates44T", i, sep="_"), ".Robj", sep=""))
+  save(list = upname, file = paste(paste("updates33T", i, sep="_"), ".Robj", sep=""))
 }
 
 
@@ -534,6 +534,52 @@ createYp <- function(dBeta.P, Beta, Phit, d, C, K, Et){
   }
   return(Y.p)
 }
+
+
+
+#############################################################################
+##################### Function to estimate Yhat ##################
+#############################################################################
+# Function to create predicted Y, i.e. Y.p
+createYhat1 <- function(psim, Beta, Phit, d, C, K, Et){
+  Taumax <- nrow(Phit)
+  Y.p1 <- array(0, c(ncol(Beta), Taumax*C))
+  for(c in 1:C){
+    inds.c <- 1:K + K*(c-1)
+    Y.p1[,1:Taumax + Taumax*(c-1)] <-
+      Beta[ psim, , inds.c] %*%
+      t(Phit%*%d) +
+      matrix(rnorm(Taumax*nrow(Y.p1), mean = 0, sd = sqrt(Et[c])),
+             ncol = Taumax)
+    gc()
+  }
+  
+  #Et  <- sampleEt()
+  
+  # Y.p1 <- Y.p1
+  return(Y.p1)
+}
+# Function to create predicted Y, i.e. Y.p
+createYhatMean <- function( Beta, Phit, d, C, K, Et){
+  Taumax <- nrow(Phit)
+  Y.p1 <- array(0, c(ncol(Beta), Taumax*C))
+  for(c in 1:C){
+    inds.c <- 1:K + K*(c-1)
+    Y.p1[,1:Taumax + Taumax*(c-1)] <-
+      Beta[ , inds.c] %*%
+      t(Phit%*%d) +
+      matrix(rnorm(Taumax*nrow(Y.p1), mean = 0, sd = sqrt(Et[c])),
+             ncol = Taumax)
+    gc()
+  }
+  
+  #Et  <- sampleEt()
+  
+  # Y.p1 <- Y.p1
+  return(Y.p1)
+}
+
+
 #############################################################################
 ##################### Function to turn Yp into Tx24 Matrix ##################
 #############################################################################
