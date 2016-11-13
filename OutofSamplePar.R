@@ -14,30 +14,30 @@ library(xts)
 
 setwd("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/")
 set.seed(42)
-load("EstResultsFull3HMM.RObj")
-load("EstResults3HMM.RObj")
+load("EstResultsFull4HMM.RObj")
+load("EstResults4HMM.RObj")
 load("Data.RData")
 source("MF_MFDLM_ARIMA.R")
 source("Prediction_functions.R")
 source("t2maturity.r")
-K <- 3
+K <- 4
 C <- 2
-postBetaAll <- EstResultsFull3HMM$postBetaAll
-postDAll <- EstResultsFull3HMM$postDAll
-postLambdaAll <- EstResultsFull3HMM$postLambdaAll
-postEtAll <- EstResultsFull3HMM$postEtAll
-postHtAll <- EstResultsFull3HMM$postHtAll
-postGammaSlopesAll <- EstResultsFull3HMM$postGammaSlopesAll
-postSAll <- EstResultsFull3HMM$postSAll
+postBetaAll <- EstResultsFull4HMM$postBetaAll
+postDAll <- EstResultsFull4HMM$postDAll
+postLambdaAll <- EstResultsFull4HMM$postLambdaAll
+postEtAll <- EstResultsFull4HMM$postEtAll
+postHtAll <- EstResultsFull4HMM$postHtAll
+postGammaSlopesAll <- EstResultsFull4HMM$postGammaSlopesAll
+postSAll <- EstResultsFull4HMM$postSAll
 
-postsvMu <- EstResultsFull3HMM$postsvMu
-postsvPhi <- EstResultsFull3HMM$postsvPhi
-postsvSigma <- EstResultsFull3HMM$postsvSigma
-postPsi <- EstResultsFull3HMM$postPsi
-postq10 <- EstResultsFull3HMM$postq10
-postq01 <- EstResultsFull3HMM$postq01
+postsvMu <- EstResultsFull4HMM$postsvMu
+postsvPhi <- EstResultsFull4HMM$postsvPhi
+postsvSigma <- EstResultsFull4HMM$postsvSigma
+postPsi <- EstResultsFull4HMM$postPsi
+postq10 <- EstResultsFull4HMM$postq10
+postq01 <- EstResultsFull4HMM$postq01
 
-rm(list = c("EstResultsFull3HMM"))
+rm(list = c("EstResultsFull4HMM"))
 gc()
 
 
@@ -85,10 +85,10 @@ if(TRUE){
   
   clusterExport(cl, varlist=ls())
   t0 <- Sys.time()
-  parLapply(cl, 67:100, fullPrediction)
+  parLapply(cl, 61:100, fullPrediction)
   t1 <- Sys.time()
   t1 - t0
   stopCluster(cl)
   
 }
-save("postIs", file="postIs33T.Robj")
+save("postIs", file="postIs44T.Robj")

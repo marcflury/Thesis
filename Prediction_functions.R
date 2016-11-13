@@ -411,7 +411,7 @@ fullPrediction <- function(i){
     )[1:(NROW(Y)-1-Ps), ,]
     rowDatesYp <- rowDatesY[(1+1+Ps):NROW(Y)]
     
-    name <- paste("results33T", Ps, i, sep="_")
+    name <- paste("results44T", Ps, i, sep="_")
     tmpYp <- array(0,dim=c(NROW(Yp),48, numPreds))
     for(numPred in 1: numPreds){
       tmpYp[, , numPred] <- cbind(maturity2tenor(Yp[,1:523, numPred],
@@ -428,9 +428,9 @@ fullPrediction <- function(i){
     assign(name, res)
     save(list = name, file = paste(name, ".Robj", sep=""))
   }
-  upname <- paste("updates33T", i, sep="_")
+  upname <- paste("updates44T", i, sep="_")
   assign(upname, updates)
-  save(list = upname, file = paste(paste("updates33T", i, sep="_"), ".Robj", sep=""))
+  save(list = upname, file = paste(paste("updates44T", i, sep="_"), ".Robj", sep=""))
 }
 
 # allPredictions is used for prediction if the updates are already available
@@ -453,8 +453,8 @@ allPredictions <- function(i, resPath, numPreds= 10, PsVec = C(1, 5, 22)){
   
   postI <- postIs[i]
   d <- postDAll[postI,,]
-  updates <- load(paste(resPath, paste("updates33T", i, sep="_"), ".Robj", sep=""))
-  assign("updates", get(paste("updates33T", i, sep="_")))
+  updates <- load(paste(resPath, paste("updates44T", i, sep="_"), ".Robj", sep=""))
+  assign("updates", get(paste("updates44T", i, sep="_")))
   
   for(Ps in PsVec){
     print(Ps)
@@ -471,7 +471,7 @@ allPredictions <- function(i, resPath, numPreds= 10, PsVec = C(1, 5, 22)){
     )[1:(NROW(Y)-1-Ps), ,]
     rowDatesYp <- rowDatesY[(1+1+Ps):NROW(Y)]
     
-    name <- paste("results33T", Ps, i, sep="_")
+    name <- paste("results44T", Ps, i, sep="_")
     tmpYp <- array(0,dim=c(NROW(Yp),48, numPreds))
     for(numPred in 1: numPreds){
       tmpYp[, , numPred] <- cbind(maturity2tenor(Yp[,1:523, numPred],
@@ -488,9 +488,9 @@ allPredictions <- function(i, resPath, numPreds= 10, PsVec = C(1, 5, 22)){
     assign(name, res)
     save(list = name, file = paste(name, ".Robj", sep=""))
   }
-  upname <- paste("updates33T", i, sep="_")
+  upname <- paste("updates44T", i, sep="_")
   assign(upname, updates)
-  save(list = upname, file = paste(paste("updates33T", i, sep="_"), ".Robj", sep=""))
+  save(list = upname, file = paste(paste("updates44T", i, sep="_"), ".Robj", sep=""))
 }
 
 
@@ -603,14 +603,215 @@ Yp2Tenor <- function(Yp, Dates, Endates, Ps, Diffs){
 
 #######################################################
 ############# Evaluation functions
-precentile1 <- function(ind.tau,obs, preds){
-  return(rowMeans(preds[,ind.tau, ] > obs[, ind.tau]))
+precentile1 <- function(ind.tau, obs, preds){
+  return(rowMeans(preds[,ind.tau, ] < obs[, ind.tau]))
 }
 
 
-precentileFun <- function(preds, obs){
+precentileFun <- function(preds, obs, Ps){
+  
   return(do.call("cbind",
-                 lapply(1:ncol(preds), precentile1, preds=preds, obs=obs)
+                 lapply(1:ncol(preds), precentile1, preds=preds,
+                        obs=obs[-(1:(Ps+1)), ])
   )
   )
 }
+
+diffs2fn <- function(Ps, Y){
+  if(Ps == 22){
+    diffs2 <- Y[-(1:23), c(1:23, 25:47)]-
+      Y[-((nrow(Y)-22):nrow(Y)), c(2:24, 26:48)]
+  }  else{
+    diffs2 <- Y[-(1:(Ps+1)), ]-Y[-((nrow(Y)-Ps):nrow(Y)), ]
+  }
+  return(diffs2)
+}
+
+diffs1fn <- function(Ps, Y, Yp){
+  YpMeans <- apply(Yp, 2, rowMeans, na.rm=TRUE)
+  diffs1 <- Y[-(1:(Ps+1)), ]-YpMeans
+}
+
+myLoadYp <- function(Index, Ps, resPath, resName){
+  datName <- paste(resName, Ps, Index,  sep="_")
+  load(paste(resPath, datName, ".Robj", sep=""))
+  return(get(datName)$Yp)
+}
+
+evalRun <- function(Name, Path, Y, perUp){
+  require(stringr)
+  KKHMM  <- str_split(Name, "_")[[1]][1]
+  Ps  <- as.numeric(str_split(Name, "_")[[1]][2])
+  resName <- paste("results", KKHMM, sep="")
+  resPath <- paste(Path, KKHMM, "/", sep="")
+  
+  YpL <- lapply(1:100, myLoadYp, Ps=Ps, resPath = resPath, resName = resName )
+  Yp <- array(0, dim = c(dim(YpL[[1]])[1:2], length(YpL)*perUp ))
+  
+  
+  for(i in 1:length(YpL)){
+    Yp[,, (1:perUp) + (i-1)*perUp] <- YpL[[i]]
+  }
+  rm("YpL")
+  gc()
+  diffs1Name <- paste("diffs1", KKHMM, "_", Ps, sep="")
+  assign(diffs1Name, diffs1fn(Ps, Y, Yp))
+  save(list = diffs1Name,
+       file = paste(Path, diffs1Name, ".RObj", sep=""))
+  print(diffs1Name)
+  
+  percentileName <- paste("percentiles", KKHMM, "_", Ps, sep="")
+  assign(percentileName, precentileFun(Yp, Y, Ps))
+  save(list = percentileName,
+       file = paste(Path, percentileName, ".RObj", sep=""))
+  
+  print(percentileName)
+  return(c(diffs1Name, percentileName))
+}
+
+diffs1Boxplot <- function(KKHMM, Ps, Path, maxTenors,
+                          labs.x = "Continuous Contract",
+                          labs.y =  "USD/bbl",
+                          title = NULL,
+                          comNames,
+                          oOSample){
+  K <- substr(KKHMM, 1, 1)
+  diffs1Name <- paste( "diffs1", KKHMM, "_", Ps, sep="")
+  load(paste(Path, diffs1Name, ".RObj", sep=""))
+  df <- as.data.frame(get(diffs1Name)[oOSample-Ps-1, ])
+  colnames(df) <- paste(rep(comNames, maxTenors),
+                        "_",
+                        colnames(get(diffs1Name)),
+                        sep ="")
+  if(is.null(title)){
+    title <- paste("Boxplot of predictions errors for ",
+                   Ps, " step ahead forecasts",
+                   " (K=", K,")", sep = "") 
+  }
+  
+  gather(df, variable, value) %>%
+    mutate(Tenor = gsub("^.*_", "", variable),
+           Commodity = gsub("_.*$", "", variable)) %>%
+    mutate(Tenor = factor(Tenor, levels = 1:max(maxTenors))) %>%
+    ggplot(aes(x = Tenor, y = value, colour = Commodity))+
+    geom_boxplot()+
+    theme_minimal()+
+    labs(title = title,
+         x = labs.x,
+         y = labs.y) %>%
+    return()
+}
+diffsTable <- function(Name, Path, maxTenors,
+                       labs.x = "Continuous Contract",
+                       labs.y =  "USD/bbl",
+                       title = NULL,
+                       comNames,
+                       oOSample){
+  KKHMM  <- str_split(Name, "_")[[1]][1]
+  Ps  <- as.numeric(str_split(Name, "_")[[1]][2])
+  K <- substr(KKHMM, 1, 1)
+  diffs1Name <- paste( "diffs1", KKHMM, "_", Ps, sep="")
+  load(paste(Path, diffs1Name, ".RObj", sep=""))
+  diffs2Name <- paste( "diffs2", "_", Ps, sep="")
+  load(paste(Path, diffs2Name, ".RObj", sep=""))
+  
+  diffs1 <-  colMeans(abs(get(diffs1Name))[oOSample-Ps-1, ],
+                      na.rm=TRUE)
+  
+  Tenors <- c()
+  for(i in 1:length(maxTenors)){
+    Tenors <- c(Tenors, 1:maxTenors[i])
+  }
+  df <- as.data.frame(diffs1) %>%
+    gather(variable, value)
+  ret <- data.frame(Tenors,
+                    df$value,
+                    rep(comNames, maxTenors))
+  colnames(ret) <- c("Tenor", Name, "Commodity")
+  return(ret)
+}
+
+diffsRatioTable <- function(Name, Path, maxTenors,
+                            labs.x = "Continuous Contract",
+                            labs.y =  "USD/bbl",
+                            title = NULL,
+                            comNames,
+                            oOSample){
+  KKHMM  <- str_split(Name, "_")[[1]][1]
+  Ps  <- as.numeric(str_split(Name, "_")[[1]][2])
+  K <- substr(KKHMM, 1, 1)
+  diffs1Name <- paste( "diffs1", KKHMM, "_", Ps, sep="")
+  load(paste(Path, diffs1Name, ".RObj", sep=""))
+  diffs2Name <- paste( "diffs2", "_", Ps, sep="")
+  load(paste(Path, diffs2Name, ".RObj", sep=""))
+  if(Ps == 22){
+    diffRatio <-  colMeans(abs(get(diffs1Name)[oOSample-Ps-1,-cumsum(maxTenors)]),
+                           na.rm=TRUE)/ 
+      colMeans(abs(get(diffs2Name)[oOSample-Ps-1, ]), na.rm=TRUE)
+    Tenors <- c()
+    for(i in length(maxTenors)){
+      Tenors22 <- c(Tenors, 1:(maxTenors[i] - 1))
+      Tenors <- c(Tenors, 1:maxTenors[i])
+    }
+    df <- as.data.frame(diffRatio) %>%
+      gather(variable, value)
+    ret1 <- data.frame(Tenors22,
+                       df$value,
+                       rep(comNames, maxTenors - 1))
+    ret2 <- data.frame(Tenors, rep(comNames, maxTenors))
+    colnames(ret1) <- c("Tenor", Name, "Commodity")
+    colnames(ret2) <- c("Tenor", "Commodity")
+    ret <- merge(ret1, ret2, all=TRUE)[, c("Tenor", Name, "Commodity")]
+    
+  } else{
+    diffRatio <-  colMeans(abs(get(diffs1Name))[oOSample-Ps-1, ],
+                           na.rm=TRUE)/ 
+      colMeans(abs(get(diffs2Name))[oOSample-Ps-1, ],
+               na.rm=TRUE)
+    
+    Tenors <- c()
+    for(i in 1:length(maxTenors)){
+      Tenors <- c(Tenors, 1:maxTenors[i])
+    }
+    df <- as.data.frame(diffRatio) %>%
+      gather(variable, value)
+    ret <- data.frame(Tenors,
+                      df$value,
+                      rep(comNames, maxTenors))
+    
+  }
+  
+  colnames(ret) <- c("Tenor", Name, "Commodity")
+  return(ret)
+}
+
+
+getPercentiles <- function(Name, Path, maxTenors,
+                           comNames,
+                           oOSample){
+  KKHMM  <- str_split(Name, "_")[[1]][1]
+  Ps  <- as.numeric(str_split(Name, "_")[[1]][2])
+  K <- substr(KKHMM, 1, 1)
+  percentilesName <- paste( "percentiles", KKHMM, "_", Ps, sep="")
+  load(paste(Path, percentilesName, ".RObj", sep=""))
+  df <- as.data.frame(get(percentilesName)[oOSample - Ps - 1, ]) %>%
+    gather(variable, value) 
+  ret <- data.frame()
+  for(i in 1:length(maxTenors)){
+    histDf <- hist(get(percentilesName)[oOSample - Ps - 1,
+                                        c(1, maxTenors+1)[i]:maxTenors[i]],
+                   breaks = 20, plot = FALSE)
+    
+    ret <- rbind(ret,
+                 data.frame(histDf$mids,
+                            histDf$count/sum(histDf$count)*20,
+                            comNames[i],
+                            Ps,
+                            K))
+  }
+  colnames(ret) <- c( "Mids", "Count", "Commodity", "Ps", "Model")
+  return(ret)
+}
+
+
+

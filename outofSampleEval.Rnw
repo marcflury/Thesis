@@ -1,0 +1,113 @@
+\documentclass{article}
+
+\begin{document}
+
+<<setup, include =FALSE>>=
+rm(list=ls(all=TRUE))
+library(ggplot2)
+library(stringr)
+library(dplyr)
+library(xtable)
+library(ggthemes)
+load("Data.Rdata")
+source("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/Prediction_functions.R")
+source("C:/Users/Marc/SkyDrive/R/Thesis/Thesis/t2maturity.r")
+Path <- "D:/R/Results/"
+
+combinations <- paste(rep(c("44T", "33T"), c(3,3)),
+                      rep(c(1,5,22), 2),
+                      sep="_")
+
+tableDiffsL <- lapply(combinations, diffsTable, Path = Path,
+              maxTenors = c(24, 24), comNames = c("Brent", "Naphtha"),
+                          oOSample = 1261:1680)
+tableDiffs <- Reduce(merge, tableDiffsL) %>%
+  dplyr::arrange(Tenor)
+
+tableDiffsRatioL <- lapply(combinations, diffsRatioTable, Path = Path,
+              maxTenors = c(24, 24), comNames = c("Brent", "Naphtha"),
+                          oOSample = 1261:1680)
+tableDiffsRatio <- Reduce(merge, tableDiffsRatioL) %>%
+  dplyr::arrange(Tenor)
+
+percentilesL <- lapply(combinations, getPercentiles, Path = Path,
+              maxTenors = c(24, 24), comNames = c("Brent", "Naphtha"),
+                          oOSample = 1261:1680)
+percentiles <- do.call("rbind", percentilesL)
+
+
+@
+
+<<DiffsChart, echo=FALSE, message=FALSE, warning=FALSE, results="asis">>=
+
+dplyr::filter(tableDiffs, Commodity == "Brent") %>%
+  dplyr::select(-Commodity) %>%
+  xtable(digits = 3,
+         label = "DiffsTbl",
+         caption = "Mean absolute prediction error for all tenors and models."
+         ) %>%
+  print(include.rownames = FALSE)
+
+@
+
+<<DiffsRatioChart, echo=FALSE, message=FALSE, warning=FALSE, results="asis">>=
+
+dplyr::filter(tableDiffsRatio, Commodity == "Brent") %>%
+  dplyr::select(-Commodity) %>%
+  xtable(digits = 3,
+         label = "DiffsRatioTbl",
+         caption = "Mean absolute prediction error ratio to benchmark for all tenors and models."
+         ) %>%
+  print(include.rownames = FALSE)
+
+@
+
+
+<<DiffsChart331, echo=FALSE, message = FALSE, warning = FALSE, fig.height=5, fig.width=6, fig.cap="Boxplot of forecasting errors for every tenor.">>=
+diffs1Boxplot(KKHMM = "33T", Ps = 1, Path = Path,
+              maxTenors = c(24, 24), comNames = c("Brent", "Naphtha"),
+                          oOSample = 1261:1680)
+
+@
+
+<<DiffsChart335, echo=FALSE, message = FALSE, warning = FALSE, fig.height=5, fig.width=6, fig.cap="Boxplot of forecasting errors for every tenor.">>=
+diffs1Boxplot(KKHMM = "33T", Ps = 5, Path = Path,
+              maxTenors = c(24, 24), comNames = c("Brent", "Naphtha"),
+                          oOSample = 1261:1680)
+@
+
+<<DiffsChart3322, echo=FALSE, message = FALSE, warning = FALSE, fig.height=5, fig.width=6, fig.cap="Boxplot of forecasting errors for every tenor.">>=
+diffs1Boxplot(KKHMM = "33T", Ps = 22, Path = Path,
+              maxTenors = c(24, 24), comNames = c("Brent", "Naphtha"),
+                          oOSample = 1261:1680)
+@
+
+<<PercentilesBrent, echo=FALSE, message = FALSE, warning = FALSE, fig.height=6, fig.width=6, fig.cap="Ratio of actual observations divided by predicted observationsin 5 percent intervalsf for both models.">>=
+dplyr::filter(percentiles, Commodity == "Brent") %>%
+ggplot( aes(x = Mids, y= Count, fill= as.factor(Model)))+
+geom_bar(stat = "identity", position = "dodge")+
+  facet_grid(Ps~., scale="free_y")+
+  geom_hline(yintercept = 1, colour = "black", linetype = "dotted")+
+  theme_minimal()+
+  scale_fill_fivethirtyeight(name = NULL)+
+  labs(x = "Percentiles", 
+       y = "Actual observations / predicted observations",
+       title = "Brent ratio of actual vs predicted oberservations")+
+  scale_x_continuous(breaks = seq(0, 1, 0.1))
+@
+
+<<PercentilesNaphtha, echo=FALSE, message = FALSE, warning = FALSE, fig.height=6, fig.width=6, fig.cap="Ratio of actual observations divided by predicted observationsin 5 percent intervalsf for both models.">>=
+dplyr::filter(percentiles, Commodity == "Naphtha") %>%
+ggplot( aes(x = Mids, y= Count, fill= as.factor(Model)))+
+geom_bar(stat = "identity", position = "dodge")+
+    facet_grid(Ps~., scale="free_y")+
+  geom_hline(yintercept = 1, colour = "black", linetype = "dotted")+
+  theme_minimal()+
+  scale_fill_fivethirtyeight(name = NULL)+
+  labs(x = "Percentiles", 
+       y = "Actual observations / predicted observations",
+       title = "Naphtha ratio of actual vs predicted oberservations")+
+  scale_x_continuous(breaks = seq(0, 1, 0.1))
+@
+
+\end{document}

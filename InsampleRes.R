@@ -133,7 +133,7 @@ naphthaS <- data.frame(Date = as.Date(rownames(Y[1:1260, ])),
 
 ggplot(naphthaS, aes(x =Date, y= value, col = Facet))+
   geom_line()+
-  labs(x = NULL, y = "USD/bbl")+
+  labs(x = NULL, y = NULL)+
   theme(legend.position = "bottom", legend.title = element_blank())+
   scale_color_fivethirtyeight() 
 
